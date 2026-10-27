@@ -1,0 +1,16 @@
+/* shahran: tabs, totals row and the extra form controls. Colours come from the variables in style.css. */
+.panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: .25rem; border-bottom: 1px solid var(--line); }
+.tabs button { background: transparent; color: var(--muted); border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: .6rem 1.1rem; }
+.tabs button:hover:not(:disabled) { background: var(--brand-soft); color: var(--brand); }
+.tabs button[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+
+tfoot td { background: var(--brand-soft); color: var(--brand); font-weight: 700; border-bottom: 0; }
+
+.field.wide { flex: 1 1 24rem; }
+.field.check { flex-direction: row; align-items: center; gap: .5rem; min-height: 2.75rem; min-width: 0; }
+.field.check > span { color: var(--ink); font-size: 1rem; font-weight: 500; }
+input[type="checkbox"] { width: 1.3rem; height: 1.3rem; min-height: 0; padding: 0; accent-color: var(--brand); }
+textarea { width: 100%; font: inherit; color: inherit; padding: .55rem .8rem; border: 1px solid #cdbdb9; border-radius: 10px; background: #fff; }
+textarea:focus { outline: 3px solid var(--focus); outline-offset: 2px; border-color: var(--brand); }

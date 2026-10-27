@@ -46,8 +46,8 @@ async function waitFor(fn, what, ms = 4000) {
   const titles = btns.map((b) => b.querySelector('.pc-title').textContent);
   check('buttons show the Farsi names', titles.join('|') === 'قائم|شهران|خودکفایی', titles);
   check('every project card has a Farsi description', btns.every((b) => b.querySelector('.pc-desc').textContent.length > 5));
-  check('only qaem is enabled', btns.map((b) => !b.disabled).join() === 'true,false,false');
-  check('inactive projects say "به‌زودی"', btns[1].textContent.includes('به‌زودی') && btns[2].textContent.includes('به‌زودی'));
+  check('only qaem is enabled', btns.map((b) => !b.disabled).join() === 'true,true,false');
+  check('inactive projects say "به‌زودی"',btns[2].textContent.includes('به‌زودی'));
   check('page is RTL Farsi', d.documentElement.dir === 'rtl' && d.documentElement.lang === 'fa');
   check('back button hidden on selector', $('#back').hidden === true);
 

@@ -24,7 +24,7 @@ def test_health_and_projects(client):
     assert client.get("/api/health").json() == {"status": "ok"}
     projects = client.get("/api/projects").json()
     assert [p["id"] for p in projects] == ["qaem", "shahran", "self"]
-    assert [p["active"] for p in projects] == [True, False, False]
+    assert [p["active"] for p in projects] == [True, True, False]
     assert [p["title"] for p in projects] == ["قائم", "شهران", "خودکفایی"]
     assert all(len(p["description"]) > 5 for p in projects)
 

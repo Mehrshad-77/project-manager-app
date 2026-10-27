@@ -1,7 +1,7 @@
 /* Project selector. Each project registers a view with mount(container) in VIEWS. */
 (function () {
   'use strict';
-  var VIEWS = { qaem: window.QaemView };
+  var VIEWS = { qaem: window.QaemView, shahran: window.ShahranView };
   var app = document.getElementById('app');
   var back = document.getElementById('back');
 

@@ -14,6 +14,7 @@ from psycopg import sql
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DB_DIR = ROOT / "qaem" / "db"
+SHAHRAN_DB_DIR = ROOT / "shahran" / "db"
 ADMIN_URL = os.environ.get("TEST_ADMIN_URL")
 TEST_DB, TEST_ROLE, TEST_PASSWORD = "me_projects_test", "me_app_test", "app-test-pw"
 
@@ -44,6 +45,10 @@ def database():
     _psql(test_url, "002_daily_totals_view.sql")
     role_sql = (DB_DIR / "003_app_role.sql").read_text().replace("me_app", TEST_ROLE)
     _psql(test_url, None, text=role_sql, app_password=TEST_PASSWORD)
+    for name in ("001_schema_and_tables.sql", "002_views.sql"):
+        _psql(test_url, None, text=(SHAHRAN_DB_DIR / name).read_text())
+    grants = (SHAHRAN_DB_DIR / "003_app_grants.sql").read_text().replace("me_app", TEST_ROLE)
+    _psql(test_url, None, text=grants)
 
     host = ADMIN_URL.split("@")[1].rsplit("/", 1)[0]
     app_url = f"postgresql://{TEST_ROLE}:{TEST_PASSWORD}@{host}/{TEST_DB}"
