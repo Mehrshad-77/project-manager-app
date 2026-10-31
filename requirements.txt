@@ -2,3 +2,5 @@ fastapi
 uvicorn
 psycopg[binary,pool]
 python-dotenv
+openpyxl
+jdatetime

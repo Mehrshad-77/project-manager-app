@@ -248,7 +248,7 @@
           h('td', { text: J.fa(t.month_total) })
         ));
       });
-      totalsBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('تاریخ'), th('جمع روز'), th('جمع ماه تا این روز'))), body));
+      totalsBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('تاریخ'), th('تعداد سرویس'), th('مجموع سرویس‌های ماه'))), body));
     }
 
     async function load() {
@@ -263,14 +263,26 @@
       renderStats(res[1].data);
     }
 
-    function section(title, body) { return h('section', { class: 'card' }, h('h2', { text: title }), body); }
+    /* ---- export: downloads the displayed month of one table as .xlsx or .csv ---- */
+    function exportButton(table, format, label) {
+      return h('button', { type: 'button', class: 'secondary', text: label, onclick: function () {
+        var rg = J.monthRange(shown.jy, shown.jm);
+        root.location.href = '/api/qaem/export/' + table + '?from=' + rg.from + '&to=' + rg.to + '&format=' + format;
+      } });
+    }
+
+    function section(title, body, table) {
+      return h('section', { class: 'card' }, h('h2', { text: title }),
+        table ? h('div', { class: 'export' }, exportButton(table, 'xlsx', 'دانلود Excel'), exportButton(table, 'csv', 'دانلود CSV')) : null,
+        body);
+    }
 
     container.replaceChildren(
       h('section', { class: 'page-head' },
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'سرویس‌های روزانهٔ کامیون‌ها' }), h('h2', { text: 'پروژه قائم' })),
           h('div', { class: 'month-picker' }, field('ماه نمایش‌داده‌شده', vMonth), field('سال', vYear)))),
-      h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox), section('مجموع سرویس‌های ', totalsBox)),
+      h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox, 'services'), section('مجموع سرویس‌های ', totalsBox, 'totals')),
       dlg
     );
     return load();

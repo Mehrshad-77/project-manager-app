@@ -1,6 +1,3 @@
-// End-to-end UI test: loads the real front end from a running server into jsdom.
-// Usage: npm install --no-save jsdom && node tests/ui.test.js http://127.0.0.1:8000
-// The server must point at an EMPTY test database (this test adds and deletes rows).
 const { JSDOM } = require('jsdom');
 const J = require('../frontend/jalali.js');
 const BASE = process.argv[2] || 'http://127.0.0.1:8000';
@@ -20,7 +17,7 @@ async function waitFor(fn, what, ms = 4000) {
     runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
     beforeParse(w) {
       w.fetch = (u, o) => fetch(new URL(u, BASE), o);
-      if (!process.env.NO_DIALOG_POLYFILL) {   // jsdom lacks showModal/close; mimic the spec so the real code path runs
+      if (!process.env.NO_DIALOG_POLYFILL) {
         w.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
         w.HTMLDialogElement.prototype.close = function () { if (!this.hasAttribute('open')) return; this.removeAttribute('open'); this.dispatchEvent(new w.Event('close')); };
       }
@@ -39,19 +36,17 @@ async function waitFor(fn, what, ms = 4000) {
   const list = async (a, b) => { const r = await api(`/services?from=${a}&to=${b}`); if (!Array.isArray(r)) throw new Error('bad list response ' + JSON.stringify(r)); return r; };
   const all = async () => [...await list('2025-01-01', '2026-01-31'), ...await list('2026-02-01', '2027-02-28')];
 
-  // ---- 1. project selector comes first ----
   await waitFor(() => $$('.projects button').length === 3, 'project buttons');
   const btns = $$('.projects button');
   check('selector lists the 3 projects', btns.map((b) => b.dataset.project).join() === 'qaem,shahran,self');
   const titles = btns.map((b) => b.querySelector('.pc-title').textContent);
   check('buttons show the Farsi names', titles.join('|') === 'قائم|شهران|خودکفایی', titles);
   check('every project card has a Farsi description', btns.every((b) => b.querySelector('.pc-desc').textContent.length > 5));
-  check('only qaem is enabled', btns.map((b) => !b.disabled).join() === 'true,true,false');
-  check('inactive projects say "به‌زودی"',btns[2].textContent.includes('به‌زودی'));
+  check('only qaem is enabled', btns.map((b) => !b.disabled).join() === 'true,false,false');
+  check('inactive projects say "به‌زودی"', btns[1].textContent.includes('به‌زودی') && btns[2].textContent.includes('به‌زودی'));
   check('page is RTL Farsi', d.documentElement.dir === 'rtl' && d.documentElement.lang === 'fa');
   check('back button hidden on selector', $('#back').hidden === true);
 
-  // ---- 2. choose qaem: form + table appear ----
   btns[0].click();
   await waitFor(() => $('form') && d.querySelector('.empty'), 'qaem view');
   const today = J.todayJalali();
@@ -64,7 +59,6 @@ async function waitFor(fn, what, ms = 4000) {
   check('empty-state message in Farsi', $('.empty').textContent.includes('ردیفی ثبت نشده'));
   check('form labels are Farsi', ['شماره کامیون', 'تاریخ', 'تعداد سرویس'].every((t) => $('form').textContent.includes(t)));
 
-  // ---- 3. add a row typing Farsi digits ----
   setIn('truck_id', '۱۲'); setIn('truck_service_count', '۵'); submit();
   await waitFor(() => bodyRows().length === 1, 'first row');
   check('success message', msg() === 'ردیف افزوده شد.', msg());
@@ -75,7 +69,6 @@ async function waitFor(fn, what, ms = 4000) {
   const g = J.toGregorian(today.jy, today.jm, today.jd);
   check('database stores the GREGORIAN date of the Solar pick', stored.length === 1 && stored[0].service_day === J.iso(g) && stored[0].truck_id === 12 && stored[0].truck_service_count === 5, stored);
 
-  // ---- 4. duplicate + validation ----
   setIn('truck_id', '12'); setIn('truck_service_count', '9'); submit();
   await waitFor(() => msg().includes('قبلاً'), 'duplicate message');
   check('duplicate gives Farsi 409 message, no new row', bodyRows().length === 1 && msg() === 'برای این کامیون در این تاریخ قبلاً ردیفی ثبت شده است.', msg());
@@ -84,14 +77,11 @@ async function waitFor(fn, what, ms = 4000) {
     check(`validation rejects truck="${t}" count="${c}"`, msg().includes(expect) && bodyRows().length === 1, msg());
   }
 
-  // ---- 5. second truck, totals ----
   setIn('truck_id', '۷'); setIn('truck_service_count', '۰۷'); submit();
   await waitFor(() => bodyRows().length === 2, 'second row');
   check('totals: day_total and month-to-date', JSON.stringify(bodyRows(1)) === JSON.stringify([[todayText, '۱۲', '۱۲']]), bodyRows(1));
-
   check('summary cards: month total and last-day total', $$('.stat-value').map((e) => e.textContent).join('|') === '۱۲|۱۲', $$('.stat-value').map((e) => e.textContent));
 
-  // ---- 6. date pickers: day count follows month/year (leap handling) ----
   setSel('year', 1403); setSel('month', 12);
   check('Esfand 1403 (leap) has 30 days', $('[name=day]').options.length === 30);
   setSel('day', 30); setSel('year', 1404);
@@ -101,7 +91,6 @@ async function waitFor(fn, what, ms = 4000) {
   setSel('month', 1);
   check('Farvardin has 31 days', $('[name=day]').options.length === 31);
 
-  // ---- 7. add on the last day of a leap year; view jumps to that month ----
   setSel('year', 1403); setSel('month', 12); setSel('day', 30);
   setIn('truck_id', '3'); setIn('truck_service_count', '4'); submit();
   await waitFor(() => bodyRows().length === 1 && bodyRows()[0][0] === '۱۴۰۳/۱۲/۳۰', 'view jumps to 1403/12');
@@ -109,7 +98,6 @@ async function waitFor(fn, what, ms = 4000) {
   const s2 = await list('2025-03-01', '2025-03-31');
   check('1403/12/30 stored as 2025-03-20', s2.length === 1 && s2[0].service_day === '2025-03-20', s2);
 
-  // ---- 8. edit in a pop-up (PATCH) ----
   const dlg = $('dialog');
   const isOpen = () => dlg.hasAttribute('open');
   const E = (n) => dlg.querySelector(`[name=edit_${n}]`);
@@ -141,23 +129,20 @@ async function waitFor(fn, what, ms = 4000) {
   check('saved: pop-up closed, only the count changed', JSON.stringify(bodyRows()[0]) === JSON.stringify(['۱۴۰۳/۱۲/۳۰', '۳', '۹']), bodyRows());
   check('success message on the page', msg() === 'تغییرات ذخیره شد.', msg());
 
-  // edit the DATE only (move to Esfand 29)
   editBtn(0).click(); eSel('day', 29); eSubmit();
   await waitFor(() => !isOpen() && bodyRows()[0] && bodyRows()[0][0] === '۱۴۰۳/۱۲/۲۹', 'date edit');
   const s3 = await list('2025-03-01', '2025-03-31');
   check('date-only edit stored correctly (2025-03-19), count kept', s3.length === 1 && s3[0].service_day === '2025-03-19' && s3[0].truck_service_count === 9, s3);
 
-  // edit onto an occupied key -> Farsi 409 inside the pop-up, nothing changes
   setSel('day', 29); setIn('truck_id', '8'); setIn('truck_service_count', '1'); submit();
   await waitFor(() => bodyRows().length === 2, 'second row in Esfand');
-  editBtn(0).click();                                         // truck 3
+  editBtn(0).click();
   E('truck_id').value = '8'; eSubmit();
   await waitFor(() => eMsg().includes('قبلاً'), 'edit conflict');
   check('conflict: Farsi 409 message in the pop-up, still open, rows unchanged', isOpen() && bodyRows().length === 2 && eMsg() === 'برای این کامیون در این تاریخ قبلاً ردیفی ثبت شده است.', bodyRows());
   eCancel();
   check('Cancel closes the pop-up without saving', !isOpen() && bodyRows().length === 2 && JSON.stringify(bodyRows()[0]) === JSON.stringify(['۱۴۰۳/۱۲/۲۹', '۳', '۹']));
 
-  // closing by clicking the backdrop (but not by clicking inside)
   editBtn(0).click();
   dlg.querySelector('h2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   check('clicking inside the pop-up does not close it', isOpen());
@@ -166,7 +151,6 @@ async function waitFor(fn, what, ms = 4000) {
   eSubmit(); await sleep(40);
   check('a stray submit after closing does nothing', bodyRows().length === 2 && JSON.stringify(bodyRows()[0]) === JSON.stringify(['۱۴۰۳/۱۲/۲۹', '۳', '۹']));
 
-  // ---- 9. delete ----
   confirmAnswer = false;
   $$('tbody tr')[1].querySelector('.danger').click(); await sleep(60);
   check('declined confirm deletes nothing', bodyRows().length === 2);
@@ -177,7 +161,6 @@ async function waitFor(fn, what, ms = 4000) {
   const s4 = await list('2025-03-01', '2025-03-31');
   check('deleted in database too', s4.length === 1 && s4[0].truck_id === 3, s4);
 
-  // editing a row someone else already deleted -> Farsi 404 in the pop-up, table refreshes
   editBtn(0).click();
   const gone = await fetch(BASE + '/api/qaem/services/2025-03-19/3', { method: 'DELETE' });
   check('direct delete worked (setup for 404 test)', gone.status === 204);
@@ -188,7 +171,6 @@ async function waitFor(fn, what, ms = 4000) {
   check('table refreshed and no row was resurrected', bodyRows().length === 0 && (await list('2025-03-01', '2025-03-31')).length === 0);
   eCancel();
 
-  // ---- 10. future dates ----
   const countBefore = (await all()).length;
   check('sanity: counting helper works', countBefore === 2, countBefore);
   if (today.jm < 12 || today.jd < 29) {
@@ -196,12 +178,10 @@ async function waitFor(fn, what, ms = 4000) {
     setIn('truck_id', '5'); setIn('truck_service_count', '1'); submit(); await sleep(60);
     check('future date refused in Farsi', msg() === 'تاریخ نمی‌تواند در آینده باشد.', msg());
   }
-  // server is the real authority: bypass the UI and send a future date directly
   const fut = await fetch(BASE + '/api/qaem/services', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service_day: '2999-01-01', truck_id: 1, truck_service_count: 1 }) });
   check('server also refuses future dates', fut.status === 422);
   check('no future row was created', (await all()).length === countBefore);
 
-  // ---- 11. month view switching ----
   setSel('view_year', today.jy); setSel('view_month', today.jm);
   await waitFor(() => bodyRows().length === 2 && bodyRows()[0][0] === todayText, 'back to current month');
   check('current month shows the two rows entered earlier', bodyRows().length === 2);
@@ -210,7 +190,10 @@ async function waitFor(fn, what, ms = 4000) {
   check('an empty month shows the Farsi empty states', $$('.empty').length === 2);
   check('empty month: summary cards show 0 and a dash', $$('.stat-value').map((e) => e.textContent).join('|') === '۰|—', $$('.stat-value').map((e) => e.textContent));
 
-  // ---- 12. back to selector ----
+  // ---- NEW: export buttons ----
+  check('export: 2 buttons per table (xlsx + csv)', $$('.export').length === 2 && $$('.export').every((e) => e.children.length === 2), $$('.export').map((e) => e.textContent));
+  check('export bars sit between the heading and the table', $$('.export').every((e) => e.previousElementSibling.tagName === 'H2'));
+
   $('#back').click();
   await waitFor(() => $$('.projects button').length === 3, 'selector again');
   check('back returns to project selector', $('#back').hidden === true);
