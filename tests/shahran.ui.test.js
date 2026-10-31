@@ -198,8 +198,13 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   await addRow(1405, 8, 1, 'Reza', '', '', { off: true });   // restore the off-day row
   check('restored: 5 rows in Aban', rowsOf().length === 5);
 
+  /* ---------- 4b. export buttons (new) ---------- */
+  check('sheet tab: export bar (Excel + CSV) sits under the heading', $$('.export', view()).length === 1 &&
+    $$('.export button', view()).map(text).join('|') === 'دانلود Excel|دانلود CSV' && $('.export', view()).previousElementSibling.tagName === 'H2');
+
   /* ---------- 5. aggregated tab ---------- */
   await tab('کارکرد تجمیعی ماهانه');
+  check('aggregated tab: export bar (Excel + CSV)', $$('.export button', view()).map(text).join('|') === 'دانلود Excel|دانلود CSV');
   let rows = rowsOf();
   check('Aban shows all 30 days', rows.length === 30);
   check('1 Aban: total 2 = simple 1 + builder 1 (off-day not counted)', rows[0].slice(0, 4).join('|') === '۱۴۰۵/۰۸/۰۱|۲|۱|۱', rows[0]);
@@ -220,6 +225,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
 
   /* ---------- 6. monthly pay ---------- */
   await tab('حقوق ماهانه');
+  check('pay tab has no export bar (not requested)', $$('.export', view()).length === 0);
   const pay = () => Object.fromEntries(rowsOf().map((r) => [r[0], r.slice(1)]));
   let p = pay();
   check('Mehr: Ali 2 days = 2,000,000; Reza 1 day = 1,200,000; Hasan absent = 0',

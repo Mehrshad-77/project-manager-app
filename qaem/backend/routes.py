@@ -1,18 +1,14 @@
 """qaem API: daily service counts per truck."""
-import csv
-import io
 from datetime import date, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-import jdatetime
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
-from openpyxl import Workbook
-from openpyxl.styles import Font
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.db import db
+from app.export import export_file
 
 router = APIRouter(prefix="/api/qaem", tags=["qaem"])
 
@@ -186,18 +182,11 @@ def totals(rng: tuple[date, date] = Depends(date_range)):
 
 
 # ---------- export (Excel .xlsx or CSV) ----------
-# table -> (fetch function, Farsi table name, Farsi column headers, the two numeric columns). Every file starts with the Solar
-# date (text, e.g. 1405/07/30) and the Gregorian date (a real date cell), so it reads like the screen and still sorts.
+# table -> (fetch function, Farsi table name, Farsi column headers, the two numeric columns)
 EXPORTS = {
-    "services": (fetch_services, "سرویس‌های ثبت‌شده", ("تاریخ", "تاریخ میلادی", "شماره کامیون", "تعداد سرویس"), ("truck_id", "truck_service_count")),
-    "totals": (fetch_totals, "مجموع سرویس‌ها", ("تاریخ", "تاریخ میلادی", "تعداد سرویس", "مجموع سرویس‌های ماه"), ("day_total", "month_total")),
+    "services": (fetch_services, "سرویس‌های ثبت‌شده", ("شماره کامیون", "تعداد سرویس"), ("truck_id", "truck_service_count")),
+    "totals": (fetch_totals, "مجموع سرویس‌ها", ("تعداد سرویس", "مجموع سرویس‌های ماه"), ("day_total", "month_total")),
 }
-XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def solar_text(d: date) -> str:
-    j = jdatetime.date.fromgregorian(date=d)
-    return f"{j.year:04d}/{j.month:02d}/{j.day:02d}"
 
 
 @router.get("/export/{table}")
@@ -208,27 +197,5 @@ def export(
 ):
     """Download one table for a date range as an Excel workbook (.xlsx) or a CSV file that Excel opens."""
     fetch, title, headers, keys = EXPORTS[table]
-    rows = [[solar_text(r["service_day"]), r["service_day"], *(int(r[k]) for k in keys)] for r in fetch(rng)]
-    if fmt == "xlsx":
-        wb = Workbook()
-        ws = wb.active
-        ws.title = table
-        ws.sheet_view.rightToLeft = True
-        ws.append([title])  # the table's name, as a heading above the column headers
-        ws["A1"].font = Font(bold=True, size=14)
-        ws.append(headers)
-        for r in rows:
-            ws.append(r)
-        for col in "ABCD":
-            ws.column_dimensions[col].width = 20
-        out = io.BytesIO()
-        wb.save(out)
-        content, media = out.getvalue(), XLSX_TYPE
-    else:
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(headers)
-        w.writerows(rows)
-        content, media = buf.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8"  # BOM: Excel reads Farsi correctly
-    name = f"qaem-{table}_{rng[0]}_{rng[1]}.{fmt}"
-    return Response(content, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    rows = [(r["service_day"], *(int(r[k]) for k in keys)) for r in fetch(rng)]
+    return export_file("qaem", table, fmt, rng, title, headers, rows)

@@ -10,6 +10,7 @@ from psycopg import sql
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db import db
+from app.export import export_file
 
 router = APIRouter(prefix="/api/shahran", tags=["shahran"])
 
@@ -205,15 +206,19 @@ class SheetPatch(BaseModel):
     _blank = field_validator("explanation")(blank_to_none)
 
 
-@router.get("/time-sheet", response_model=list[SheetOut])
-def list_time_sheet(rng: tuple[date, date] = Depends(date_range)):
-    """Rows from `from` to `to` inclusive, with each worker's name."""
+def fetch_time_sheet(rng):
     return run(
         """SELECT t.*, w.full_name FROM shahran.daily_time_sheet t
            JOIN shahran.workers w USING (worker_id)
            WHERE t.work_day BETWEEN %s AND %s ORDER BY t.work_day, w.full_name""",
         rng,
     )
+
+
+@router.get("/time-sheet", response_model=list[SheetOut])
+def list_time_sheet(rng: tuple[date, date] = Depends(date_range)):
+    """Rows from `from` to `to` inclusive, with each worker's name."""
+    return fetch_time_sheet(rng)
 
 
 @router.post("/time-sheet", status_code=201, response_model=SheetOut)
@@ -254,8 +259,7 @@ class NoteOut(BaseModel):
     explanation: str
 
 
-@router.get("/aggregated-work", response_model=list[DayOut])
-def aggregated_work(rng: tuple[date, date] = Depends(date_range)):
+def fetch_aggregated(rng):
     """One row for every day from `from` to `to` (zeros on days nobody worked)."""
     found = {
         r["work_day"]: r
@@ -269,6 +273,12 @@ def aggregated_work(rng: tuple[date, date] = Depends(date_range)):
     empty = {"total_workers": 0, "simple_workers": 0, "builders": 0, "explanation": None}
     days = (start + timedelta(days=i) for i in range((end - start).days + 1))
     return [found.get(d) or {"work_day": d, **empty} for d in days]
+
+
+@router.get("/aggregated-work", response_model=list[DayOut])
+def aggregated_work(rng: tuple[date, date] = Depends(date_range)):
+    """One row for every day from `from` to `to` (zeros on days nobody worked)."""
+    return fetch_aggregated(rng)
 
 
 @router.put("/aggregated-work/{work_day}", response_model=NoteOut)
@@ -305,3 +315,44 @@ def monthly_salary(year: int = Query(ge=1300, le=1479, description="Solar year")
            WHERE solar_year = %s AND solar_month = %s ORDER BY full_name""",
         (year, month),
     )
+
+
+# ---------- export (Excel .xlsx or CSV) ----------
+def hm(t):
+    return t and t.replace(second=0, microsecond=0)  # 07:00:00 -> 07:00
+
+
+def tick(flag):
+    return "✓" if flag else ""  # same marks as the screen
+
+
+# table -> (fetch function, Farsi table name, [(Farsi column header, how to read it from a row)])
+EXPORTS = {
+    "time-sheet": (fetch_time_sheet, "کارکرد روزانه", [
+        ("کارگر", lambda r: r["full_name"]),
+        ("ساعت ورود", lambda r: hm(r["arrival_time"])),
+        ("ساعت خروج", lambda r: hm(r["exit_time"])),
+        ("اضافه‌کاری", lambda r: float(r["overtime"])),
+        ("تعطیلات", lambda r: tick(r["is_holiday"])),
+        ("مرخصی", lambda r: tick(r["is_off_day"])),
+        ("توضیحات", lambda r: r["explanation"]),
+    ]),
+    "aggregated-work": (fetch_aggregated, "کارکرد تجمیعی ماهانه", [
+        ("مجموع کارگران", lambda r: r["total_workers"]),
+        ("کارگر ساده", lambda r: r["simple_workers"]),
+        ("بنا", lambda r: r["builders"]),
+        ("توضیحات", lambda r: r["explanation"]),
+    ]),
+}
+
+
+@router.get("/export/{table}")
+def export(
+    table: Literal["time-sheet", "aggregated-work"],
+    fmt: Literal["xlsx", "csv"] = Query("xlsx", alias="format"),
+    rng: tuple[date, date] = Depends(date_range),
+):
+    """Download the time sheet or the aggregated sheet for a date range as .xlsx or CSV (same rows as the screen)."""
+    fetch, title, columns = EXPORTS[table]
+    rows = [(r["work_day"], *(get(r) for _, get in columns)) for r in fetch(rng)]
+    return export_file("shahran", table, fmt, rng, title, [h for h, _ in columns], rows)

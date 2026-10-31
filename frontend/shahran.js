@@ -410,11 +410,23 @@
       else renderPay(res[0].data);
     }
 
+    /* ---- export: downloads the displayed month of one table as .xlsx or .csv ---- */
+    function exportButton(table, format, label) {
+      return h('button', { type: 'button', class: 'secondary', text: label, onclick: function () {
+        var rg = J.monthRange(shown.jy, shown.jm);
+        root.location.href = '/api/shahran/export/' + table + '?from=' + rg.from + '&to=' + rg.to + '&format=' + format;
+      } });
+    }
+
     /* ---- tabs and page ---- */
-    function section(title, body) { return h('section', { class: 'card' }, h('h2', { text: title }), body); }
+    function section(title, body, table) {
+      return h('section', { class: 'card' }, h('h2', { text: title }),
+        table ? h('div', { class: 'export' }, exportButton(table, 'xlsx', 'دانلود Excel'), exportButton(table, 'csv', 'دانلود CSV')) : null,
+        body);
+    }
     var panels = {
-      sheet: h('div', { class: 'panel' }, sheetForm, section('کارکرد روزانهٔ ثبت‌شده', sheetBox)),
-      agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox)),
+      sheet: h('div', { class: 'panel' }, sheetForm, section('کارکرد روزانهٔ ثبت‌شده', sheetBox, 'time-sheet')),
+      agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox, 'aggregated-work')),
       pay: h('div', { class: 'panel' }, section('حقوق ماهانه', payBox)),
       workers: h('div', { class: 'panel' }, workerForm, section('کارگران', workersBox))
     };
