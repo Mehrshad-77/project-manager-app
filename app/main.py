@@ -20,6 +20,15 @@ PROJECTS = [
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
+class Frontend(StaticFiles):
+    """Static files that the browser re-checks on every load, so an edited .js/.css shows up without a stale cache."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.open_pool()
@@ -45,4 +54,4 @@ def health():
 
 
 # Mounted last so it never shadows /api routes.
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+app.mount("/", Frontend(directory=FRONTEND_DIR, html=True), name="frontend")

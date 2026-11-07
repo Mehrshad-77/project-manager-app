@@ -248,7 +248,7 @@
           h('td', { text: J.fa(t.month_total) })
         ));
       });
-      totalsBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('تاریخ'), th('تعداد سرویس'), th('مجموع سرویس‌های ماه'))), body));
+      totalsBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('تاریخ'), th('جمع روز'), th('جمع ماه تا این روز'))), body));
     }
 
     async function load() {

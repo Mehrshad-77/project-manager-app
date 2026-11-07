@@ -338,7 +338,7 @@ EXPORTS = {
         ("توضیحات", lambda r: r["explanation"]),
     ]),
     "aggregated-work": (fetch_aggregated, "کارکرد تجمیعی ماهانه", [
-        ("مجموع کارگران", lambda r: r["total_workers"]),
+        ("تعداد نفرات", lambda r: r["total_workers"]),
         ("کارگر ساده", lambda r: r["simple_workers"]),
         ("بنا", lambda r: r["builders"]),
         ("توضیحات", lambda r: r["explanation"]),
@@ -351,8 +351,13 @@ def export(
     table: Literal["time-sheet", "aggregated-work"],
     fmt: Literal["xlsx", "csv"] = Query("xlsx", alias="format"),
     rng: tuple[date, date] = Depends(date_range),
+    letter_date: str = Query("", max_length=30),
+    letter_to: str = Query("", max_length=300),
+    letter_body: str = Query("", max_length=1000),
 ):
-    """Download the time sheet or the aggregated sheet for a date range as .xlsx or CSV (same rows as the screen)."""
+    """Download the time sheet or the aggregated sheet for a date range as .xlsx or CSV (same rows as the screen).
+    The aggregated .xlsx is laid out as a letter; its date, addressee and text are typed by the person (letter_*)."""
     fetch, title, columns = EXPORTS[table]
     rows = [(r["work_day"], *(get(r) for _, get in columns)) for r in fetch(rng)]
-    return export_file("shahran", table, fmt, rng, title, [h for h, _ in columns], rows)
+    letter = tuple(t.strip() for t in (letter_date, letter_to, letter_body)) if table == "aggregated-work" else None
+    return export_file("shahran", table, fmt, rng, title, [h for h, _ in columns], rows, letter)

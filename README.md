@@ -98,10 +98,16 @@ Each table on the qaem and shahran pages has **دانلود Excel** (`.xlsx`) an
 on screen (shahran: the daily time sheet and the aggregated sheet; pay and workers are not exported). All of it is done by
 `app/export.py`, which the two projects share.
 
-- The `.xlsx` has the table's Farsi name as a bold heading in row 1 (the CSV stays a clean table with no heading row),
-  Farsi column headers in row 2, and opens right-to-left.
-- Every file starts with the Solar date (text, e.g. `1405/08/09`) and the Gregorian date (a real date cell, so it sorts and
-  filters). Times are real time cells (`hh:mm`), counts and overtime are numbers; holiday / off-day show `✓` as on screen.
+- The `.xlsx` is a print-ready table: a thin black grid inside a heavy frame, taller rows, a shaded centred header row and
+  the table's Farsi name as a heading above it (the CSV stays a clean table with no heading). It opens right-to-left and
+  prints on A4, one page wide, with the header repeated on every page.
+- The **aggregated sheet** (`aggregated-work`) is laid out like the paper letter instead: بسمه تعالی, then the typed date,
+  addressee and text, the table (تاریخ, تعداد نفرات, کارگر ساده, بنا, توضیحات), a **جمع** totals row and two empty signature
+  boxes (نقشه بردار_مسئول اجراء / مدیریت کارگاه). The three typed texts are fields on that tab (starting wording in
+  `LETTER_TO` / `LETTER_BODY` at the top of `frontend/shahran.js`; the date starts as today's) and travel with the download as
+  `letter_date`, `letter_to`, `letter_body`. The CSV of the same table is still a plain table.
+- Every file starts with the Solar date (text, e.g. `1405/08/09`). Times are real time cells (`hh:mm`), counts and overtime
+  are numbers; holiday / off-day show `✓` as on screen.
 - Typed text that starts with `=`, `+`, `-` or `@` cannot run as a spreadsheet formula (kept as text in `.xlsx`, quote-prefixed in CSV).
 - The CSV starts with a UTF-8 BOM so Excel shows Farsi correctly. In locales where Excel's list separator is `;` a comma CSV
   opens in one column, so prefer the `.xlsx` there.

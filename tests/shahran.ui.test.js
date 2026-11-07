@@ -205,6 +205,13 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   /* ---------- 5. aggregated tab ---------- */
   await tab('کارکرد تجمیعی ماهانه');
   check('aggregated tab: export bar (Excel + CSV)', $$('.export button', view()).map(text).join('|') === 'دانلود Excel|دانلود CSV');
+  const todayFa = J.fa(String(today.jy).padStart(4, '0') + '/' + String(today.jm).padStart(2, '0') + '/' + String(today.jd).padStart(2, '0'));
+  check('aggregated tab: letter fields sit above the export bar, with today\'s date and the starting wording',
+    $('.letter', view()) && $('.letter', view()).nextElementSibling === $('.export', view()) &&
+    named('letter_date', view()).value === todayFa && named('letter_to', view()).value.startsWith('مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال') &&
+    named('letter_body', view()).value.startsWith('با سلام, احتراما بدینوسیله') && named('letter_body', view()).value.endsWith('همکاری نمودند'),
+    [named('letter_date', view()) && named('letter_date', view()).value]);
+  check('the other tabs have no letter fields', !$('.letter', $$('.panel')[0]) && !$('.letter', $$('.panel')[2]) && !$('.letter', $$('.panel')[3]));
   let rows = rowsOf();
   check('Aban shows all 30 days', rows.length === 30);
   check('1 Aban: total 2 = simple 1 + builder 1 (off-day not counted)', rows[0].slice(0, 4).join('|') === '۱۴۰۵/۰۸/۰۱|۲|۱|۱', rows[0]);

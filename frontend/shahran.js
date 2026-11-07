@@ -5,6 +5,9 @@
   var MIN_YEAR = 1400;
   var SALARY_MAX = 1000000000000;
   var ROLES = [{ value: 'simple', label: 'کارگر ساده' }, { value: 'builder', label: 'بنا' }];
+  /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
+  var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
+  var LETTER_BODY = 'با سلام, احتراما بدینوسیله به استحضار میرساند جهت تجهیز و اماده سازی کارگاه در تاریخ های ذیل نفرات با کارگاه همکاری نمودند';
   var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران']];
 
   function h(tag, props) {
@@ -411,22 +414,36 @@
     }
 
     /* ---- export: downloads the displayed month of one table as .xlsx or .csv ---- */
-    function exportButton(table, format, label) {
+    function exportButton(table, format, label, extra) {
       return h('button', { type: 'button', class: 'secondary', text: label, onclick: function () {
         var rg = J.monthRange(shown.jy, shown.jm);
-        root.location.href = '/api/shahran/export/' + table + '?from=' + rg.from + '&to=' + rg.to + '&format=' + format;
+        root.location.href = '/api/shahran/export/' + table + '?from=' + rg.from + '&to=' + rg.to + '&format=' + format +
+          (extra && format === 'xlsx' ? extra() : '');
       } });
     }
 
+    /* The letter text for the aggregated Excel file: typed here, sent with the download. */
+    var lDate = textInput('letter_date');
+    var lTo = textInput('letter_to');
+    var lBody = h('textarea', { name: 'letter_body', rows: '2' });
+    lDate.value = J.fa(today.jy + '/' + String(100 + today.jm).slice(1) + '/' + String(100 + today.jd).slice(1));
+    lTo.value = LETTER_TO;
+    lBody.value = LETTER_BODY;
+    var letterFields = h('div', { class: 'fields letter' }, field('تاریخ نامه', lDate), field('گیرنده نامه', lTo, 'wide'), field('متن نامه', lBody, 'wide'));
+    function letterQuery() {
+      return '&letter_date=' + encodeURIComponent(lDate.value) + '&letter_to=' + encodeURIComponent(lTo.value) +
+        '&letter_body=' + encodeURIComponent(lBody.value);
+    }
+
     /* ---- tabs and page ---- */
-    function section(title, body, table) {
-      return h('section', { class: 'card' }, h('h2', { text: title }),
-        table ? h('div', { class: 'export' }, exportButton(table, 'xlsx', 'دانلود Excel'), exportButton(table, 'csv', 'دانلود CSV')) : null,
+    function section(title, body, table, letter) {
+      return h('section', { class: 'card' }, h('h2', { text: title }), letter ? letterFields : null,
+        table ? h('div', { class: 'export' }, exportButton(table, 'xlsx', 'دانلود Excel', letter && letterQuery), exportButton(table, 'csv', 'دانلود CSV')) : null,
         body);
     }
     var panels = {
       sheet: h('div', { class: 'panel' }, sheetForm, section('کارکرد روزانهٔ ثبت‌شده', sheetBox, 'time-sheet')),
-      agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox, 'aggregated-work')),
+      agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox, 'aggregated-work', true)),
       pay: h('div', { class: 'panel' }, section('حقوق ماهانه', payBox)),
       workers: h('div', { class: 'panel' }, workerForm, section('کارگران', workersBox))
     };

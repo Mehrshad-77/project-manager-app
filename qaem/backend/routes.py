@@ -185,7 +185,7 @@ def totals(rng: tuple[date, date] = Depends(date_range)):
 # table -> (fetch function, Farsi table name, Farsi column headers, the two numeric columns)
 EXPORTS = {
     "services": (fetch_services, "سرویس‌های ثبت‌شده", ("شماره کامیون", "تعداد سرویس"), ("truck_id", "truck_service_count")),
-    "totals": (fetch_totals, "مجموع سرویس‌ها", ("تعداد سرویس", "مجموع سرویس‌های ماه"), ("day_total", "month_total")),
+    "totals": (fetch_totals, "مجموع سرویس‌ها", ("جمع روز", "جمع ماه تا این روز"), ("day_total", "month_total")),
 }
 
 
