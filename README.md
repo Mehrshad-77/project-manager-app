@@ -1,31 +1,108 @@
-# project-manager
+# Project Manager
 
-One FastAPI app and one PostgreSQL database (`me_projects`) for several projects.
-Each project has its own database schema, its own API routes, and its own front-end page.
-The UI is in Farsi (right-to-left) with Solar (Jalali) dates; code, API and database stay in English.
+A single-user desktop application for tracking project work, built with FastAPI and PostgreSQL.
+It runs as a normal Windows program (installer and desktop shortcut included) and ships with its own private database,
+so nothing else has to be installed.
 
-| Project | Status |
+The interface is in **Farsi (right-to-left)** with **Solar (Jalali) dates**. Code, API and database stay in English.
+
+## Projects
+
+| Project | Status | What it does |
+|---|---|---|
+| `qaem` | Done | Daily service counts per truck, with daily and month-to-date totals |
+| `shahran` | Done | Workers, daily time sheet (attendance), daily counts per role, monthly pay |
+| `self` | Placeholder | Shown as "به‌زودی" (coming soon) until its tables are designed |
+
+## Features
+
+- **Two projects, one app.** Each project has its own database schema, API routes and front-end page.
+- **Solar calendar everywhere.** Dates are picked and shown in the Solar calendar; the database stores Gregorian dates.
+  Solar months are computed in the database itself, so there is one definition of "month".
+- **Excel and CSV export.** Print-ready `.xlsx` tables (A4, right-to-left, repeated header) and Excel-friendly CSV.
+  The shahran aggregated sheet is laid out as an official letter with totals and signature boxes.
+- **Desktop app.** Runs in a native window (pywebview) on a private local port, with an optional embedded PostgreSQL.
+- **Windows installer.** One `Setup.exe` that installs the app and adds a desktop shortcut.
+- **Well tested.** API tests, Solar-calendar verification for every day of Solar 1200-1633, UI tests, real-browser
+  layout tests and a WCAG colour-contrast check.
+
+## Contents
+
+- [Quick start (desktop app)](#quick-start-desktop-app)
+- [Building the Windows installer](#building-the-windows-installer)
+- [Running as a web app](#running-as-a-web-app)
+- [Project layout](#project-layout)
+- [API: qaem](#api-qaem)
+- [API: shahran](#api-shahran)
+- [Export to Excel](#export-to-excel)
+- [How Solar months work](#how-solar-months-work-in-the-database)
+- [Design](#design)
+- [Tests](#tests)
+- [Adding a project](#adding-a-project)
+
+---
+
+## Quick start (desktop app)
+
+Requirements: Windows, and Python **3.12** (the `pgserver` package may not have a build for newer versions).
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt pywebview pgserver platformdirs
+python desktop.py
+```
+
+`desktop.py` starts the app on a free local port and shows it in a native window. The database is chosen like this:
+
+| Situation | Database used |
 |---|---|
-| `qaem` | Done: daily service counts per truck, with daily and month-to-date totals |
-| `shahran` | Done: workers, daily time sheet (attendance), daily counts per role, monthly pay |
-| `self` | Placeholder ("به‌زودی") until its tables are designed |
+| `DATABASE_URL` is set (in `.env` next to `desktop.py`, or in the environment) | That PostgreSQL, exactly like the web version |
+| `DATABASE_URL` is not set | A private PostgreSQL started by the `pgserver` package |
 
-## Layout
+With the private database, the data lives in the user's data folder
+(`%LOCALAPPDATA%\Mehrshad\ProjectManager\pgdata` on Windows). The tables and views are created or refreshed at every
+start, and the database is stopped when the window closes. Reinstalling or updating the app does not touch the data.
+
+## Building the Windows installer
+
+Two steps: pack the app with PyInstaller, then wrap it with Inno Setup.
+
+**1. Pack the app**
+
+```powershell
+pip install pyinstaller
+pyinstaller desktop.py --name ProjectManager --windowed --noconfirm `
+  --add-data "frontend;frontend" --add-data "qaem/db;qaem/db" --add-data "shahran/db;shahran/db" `
+  --collect-all pgserver --collect-all webview --collect-all tzdata
+```
+
+The result is the folder `dist\ProjectManager\`. Run `dist\ProjectManager\ProjectManager.exe` to test it before
+building the installer. The flags matter:
+
+- `--add-data` copies the front end and the SQL files into the package (they are not Python code).
+- `--collect-all pgserver` bundles the PostgreSQL binaries (the biggest part of the package).
+- `--collect-all tzdata` provides the `Asia/Tehran` time zone, which Windows does not ship.
+- `--windowed` hides the console window.
+
+**2. Build the installer**
+
+Install [Inno Setup 6](https://jrsoftware.org/isinfo.php), open `installer.iss` and press **Ctrl+F9**
+(or run `ISCC.exe installer.iss`). The installer is written to:
 
 ```
-app/                FastAPI app, DB pool, project registry, shared Excel/CSV export (export.py)
-qaem/db/            numbered SQL files (schema + table, totals view, app role)
-qaem/backend/       qaem API routes
-shahran/db/         numbered SQL files (schema + tables, views, grants for the app role)
-shahran/backend/    shahran API routes
-frontend/           plain HTML/CSS/JS (project selector, one page per project, Solar-date helper, bundled font)
-tests/              API tests (pytest); Solar-date, colour-contrast, UI and real-browser tests (Node)
+installer\ProjectManager-Setup.exe
 ```
 
-## Setup (WSL2 / Linux)
+It installs per user (no administrator rights, which PostgreSQL requires), creates a desktop shortcut and a Start menu
+entry, and offers to launch the app. Windows SmartScreen may warn about an unknown publisher because the installer is
+not code-signed; choose **More info → Run anyway**.
 
-1. **Database.** If `me_projects` already has a project's schema you can skip that project's first commands.
-   All files are safe to re-run.
+## Running as a web app
+
+For development, or to use an existing PostgreSQL server.
+
+1. **Database.** All files are safe to re-run.
    ```bash
    sudo -u postgres psql -d me_projects < qaem/db/001_schema_and_table.sql
    sudo -u postgres psql -d me_projects < qaem/db/002_daily_totals_view.sql
@@ -34,9 +111,9 @@ tests/              API tests (pytest); Solar-date, colour-contrast, UI and real
    sudo -u postgres psql -d me_projects < shahran/db/002_views.sql
    sudo -u postgres psql -d me_projects < shahran/db/003_app_grants.sql
    ```
-   `qaem/db/003_app_role.sql` creates the limited `me_app` role the web app uses; re-running it just resets the password.
-   Use letters and digits only in the password. `shahran/db/003_app_grants.sql` gives that role access to the shahran
-   schema (read/write on its three tables, read on its two views), so run it after the qaem one.
+   `qaem/db/003_app_role.sql` creates the limited `me_app` role the web app uses (re-running it resets the password;
+   use letters and digits only). `shahran/db/003_app_grants.sql` gives that role access to the shahran schema, so run it
+   after the qaem one.
 
 2. **Python.**
    ```bash
@@ -44,16 +121,34 @@ tests/              API tests (pytest); Solar-date, colour-contrast, UI and real
    pip install -r requirements.txt
    ```
 
-3. **Settings.** `cp .env.example .env`, then put the same password into `DATABASE_URL`.
-   `.env` is git-ignored: never commit it.
+3. **Settings.** `cp .env.example .env` and put the same password into `DATABASE_URL`. `.env` is git-ignored: never
+   commit it.
 
 4. **Run.**
    ```bash
    uvicorn app.main:app --reload
    ```
-   Open http://localhost:8000 (works from the Windows browser too).
+   Open http://localhost:8000. Interactive API docs are at http://localhost:8000/docs.
 
-## API (qaem), all under `/api/qaem`
+## Project layout
+
+```
+app/                FastAPI app, DB pool, project registry, shared Excel/CSV export (export.py)
+qaem/db/            numbered SQL files (schema + table, totals view, app role)
+qaem/backend/       qaem API routes
+shahran/db/         numbered SQL files (schema + tables, views, grants for the app role)
+shahran/backend/    shahran API routes
+frontend/           plain HTML/CSS/JS (project selector, one page per project, Solar-date helper, bundled font)
+desktop.py          desktop entry point: native window, private port, optional embedded PostgreSQL
+installer.iss       Inno Setup script that builds ProjectManager-Setup.exe
+tests/              API tests (pytest); Solar-date, colour-contrast, UI and real-browser tests (Node)
+```
+
+---
+
+## API: qaem
+
+All routes are under `/api/qaem`.
 
 | Method and path | Purpose |
 |---|---|
@@ -63,17 +158,15 @@ tests/              API tests (pytest); Solar-date, colour-contrast, UI and real
 | `DELETE /services/{day}/{truck_id}` | Remove a row |
 | `GET /services?from=&to=` | Rows between two dates (inclusive, max 400 days) |
 | `GET /totals?from=&to=` | `day_total` per day and `month_total`, the running sum within that day's **Solar month** |
-| `GET /export/{table}?from=&to=&format=` | Download `services` or `totals` for the range as `xlsx` (default) or `csv` |
+| `GET /export/{table}?from=&to=&format=` | Download `services` or `totals` as `xlsx` (default) or `csv` |
 
-Dates in the API are Gregorian `YYYY-MM-DD`; the front end converts to and from Solar dates.
-Future dates are rejected (Tehran time), as are dates before Solar 1300 (1921-03-21).
-Counts must be whole numbers `>= 0`, truck ids `> 0`.
-Interactive docs: http://localhost:8000/docs
+Dates in the API are Gregorian `YYYY-MM-DD`; the front end converts to and from Solar dates. Future dates are rejected
+(Tehran time), as are dates before Solar 1300 (1921-03-21). Counts must be whole numbers `>= 0`, truck ids `> 0`.
 
-## API (shahran), all under `/api/shahran`
+## API: shahran
 
-Same conventions as qaem: Gregorian dates, `from`/`to` ranges (max 400 days), future dates and dates before
-1921-03-21 rejected, `409` for duplicates, `422` for bad values, `404` for a missing row.
+All routes are under `/api/shahran`. Same conventions as qaem: Gregorian dates, `from`/`to` ranges (max 400 days),
+future dates and dates before 1921-03-21 rejected, `409` for duplicates, `422` for bad values, `404` for a missing row.
 
 | Method and path | Purpose |
 |---|---|
@@ -85,38 +178,37 @@ Same conventions as qaem: Gregorian dates, `from`/`to` ranges (max 400 days), fu
 | `DELETE /time-sheet/{day}/{worker_id}` | Remove a row |
 | `GET /aggregated-work?from=&to=` | One row for every day: `total_workers`, `simple_workers`, `builders`, `explanation` (zeros on days nobody worked) |
 | `PUT /aggregated-work/{day}`, `DELETE /aggregated-work/{day}` | Set or clear that day's explanation (the only typed part of the sheet) |
-| `GET /monthly-salary?year=&month=` | Per worker for one **Solar** month (`year` and `month` are Solar numbers): `work_days`, `daily_salary`, `salary` = work days x daily salary |
-| `GET /export/{table}?from=&to=&format=` | Download `time-sheet` (کارکرد روزانه) or `aggregated-work` (کارکرد تجمیعی ماهانه) for the range as `xlsx` (default) or `csv` |
+| `GET /monthly-salary?year=&month=` | Per worker for one **Solar** month: `work_days`, `daily_salary`, `salary` = work days x daily salary |
+| `GET /export/{table}?from=&to=&format=` | Download `time-sheet` or `aggregated-work` as `xlsx` (default) or `csv` |
 
-A day counts as a work day only when **both** `arrival_time` and `exit_time` are filled; a row with just one of them is
-refused (the database enforces it too). Holidays, off-days and overtime do not change the pay.
-If a worker's `daily_salary` is changed, every month is recalculated at the new rate.
+**Pay rules.** A day counts as a work day only when **both** `arrival_time` and `exit_time` are filled; a row with just
+one of them is refused (the database enforces this too). Holidays, off-days and overtime do not change the pay. If a
+worker's `daily_salary` changes, every month is recalculated at the new rate.
 
-### Export to Excel
+## Export to Excel
 
-Each table on the qaem and shahran pages has **دانلود Excel** (`.xlsx`) and **دانلود CSV** buttons; they download the month
-on screen (shahran: the daily time sheet and the aggregated sheet; pay and workers are not exported). All of it is done by
-`app/export.py`, which the two projects share.
+Each table on the qaem and shahran pages has **دانلود Excel** (`.xlsx`) and **دانلود CSV** buttons that download the month
+on screen. Pay and workers are not exported. Everything is handled by `app/export.py`, shared by both projects.
 
-- The `.xlsx` is a print-ready table: a thin black grid inside a heavy frame, taller rows, a shaded centred header row and
-  the table's Farsi name as a heading above it (the CSV stays a clean table with no heading). It opens right-to-left and
-  prints on A4, one page wide, with the header repeated on every page.
-- The **aggregated sheet** (`aggregated-work`) is laid out like the paper letter instead: بسمه تعالی, then the typed date,
-  addressee and text, the table (تاریخ, تعداد نفرات, کارگر ساده, بنا, توضیحات), a **جمع** totals row and two empty signature
-  boxes (نقشه بردار_مسئول اجراء / مدیریت کارگاه). The three typed texts are fields on that tab (starting wording in
-  `LETTER_TO` / `LETTER_BODY` at the top of `frontend/shahran.js`; the date starts as today's) and travel with the download as
-  `letter_date`, `letter_to`, `letter_body`. The CSV of the same table is still a plain table.
-- Every file starts with the Solar date (text, e.g. `1405/08/09`). Times are real time cells (`hh:mm`), counts and overtime
-  are numbers; holiday / off-day show `✓` as on screen.
-- Typed text that starts with `=`, `+`, `-` or `@` cannot run as a spreadsheet formula (kept as text in `.xlsx`, quote-prefixed in CSV).
-- The CSV starts with a UTF-8 BOM so Excel shows Farsi correctly. In locales where Excel's list separator is `;` a comma CSV
-  opens in one column, so prefer the `.xlsx` there.
-- The rows are produced by the same queries as the screen (`fetch_*` functions in each `routes.py`).
+- **Print-ready `.xlsx`.** Thin black grid inside a heavy frame, taller rows, a shaded centred header and the table's
+  Farsi name as a heading. It opens right-to-left and prints on A4, one page wide, with the header repeated on every page.
+  The CSV stays a clean table with no heading.
+- **Aggregated sheet as a letter.** The shahran aggregated sheet starts with بسمه تعالی, then a typed date, addressee and
+  text, then the table, a **جمع** totals row and two empty signature boxes (نقشه بردار_مسئول اجراء / مدیریت کارگاه). The three
+  typed texts are fields on that tab (starting wording in `LETTER_TO` / `LETTER_BODY` at the top of
+  `frontend/shahran.js`) and travel with the download as `letter_date`, `letter_to` and `letter_body`.
+- **Typed values.** Every file starts with the Solar date as text (e.g. `1405/08/09`). Times are real time cells
+  (`hh:mm`); counts and overtime are numbers; holiday and off-day show `✓` as on screen.
+- **Formula safety.** Typed text starting with `=`, `+`, `-` or `@` cannot run as a spreadsheet formula (kept as text in
+  `.xlsx`, quote-prefixed in CSV).
+- **CSV and Excel.** The CSV starts with a UTF-8 BOM so Excel shows Farsi correctly. Where Excel's list separator is
+  `;`, a comma CSV opens in one column, so prefer `.xlsx` there.
+- **Same data as the screen.** Rows come from the same queries as the on-screen tables (`fetch_*` in each `routes.py`).
 
-### How Solar months work in the database
+## How Solar months work in the database
 
-The tables store Gregorian dates. Each project's `002` SQL file uses a function that converts a date to its Solar
-year/month/day, and its views use it, so there is one definition of "month" and it lives in the database:
+The tables store Gregorian dates. Each project's `002` SQL file defines a function that converts a date to its Solar
+year/month/day, and its views use it.
 
 | Project | Function | Views |
 |---|---|---|
@@ -128,35 +220,47 @@ sudo -u postgres psql -d me_projects -c "SELECT * FROM qaem.daily_totals ORDER B
 sudo -u postgres psql -d me_projects -c "SELECT * FROM shahran.monthly_salary ORDER BY solar_year, solar_month, full_name;"
 ```
 
-The APIs read these views. After re-running a project's `002` (it recreates the views), re-run its grants file
+The APIs read these views. After re-running a project's `002` file (it recreates the views), re-run its grants file
 (`qaem/db/003_app_role.sql` or `shahran/db/003_app_grants.sql`) so the app role can read the views again.
+The embedded database used by the desktop app needs no grants: it runs without the limited role.
 
 ## Design
 
-Burgundy (`#3B1515`) on warm neutrals, large header bands, cards and clean tables, in the style of reckoner.com.
-All colours are variables at the top of `frontend/style.css`; change them there. Layout works from 320 px phones to wide
-desktops. The shahran page adds a few rules (tabs, totals row, checkboxes) in `frontend/shahran.css`, using the same colour
-variables. The Farsi font is Vazirmatn (SIL Open Font License, see `frontend/fonts/OFL.txt`), served from this project so
-it also works offline.
+Burgundy (`#3B1515`) on warm neutrals, large header bands, cards and clean tables. All colours are variables at the top
+of `frontend/style.css`; change them there. The layout works from 320 px phones to wide desktops. The shahran page adds a
+few rules (tabs, totals row, checkboxes) in `frontend/shahran.css`. The Farsi font is Vazirmatn (SIL Open Font License,
+see `frontend/fonts/OFL.txt`), served from this project so it works offline.
 
 ## Tests
 
 ```bash
 pip install -r requirements-dev.txt
+```
 
-# API tests (qaem, shahran and both exports): need a superuser URL; they create and drop their own database
-# "me_projects_test" and role "me_app_test" and never touch me_projects.
+**API tests** (qaem, shahran and both exports). They need a PostgreSQL superuser URL, create and drop their own
+database `me_projects_test` and role `me_app_test`, and never touch `me_projects`:
+
+```bash
 TEST_ADMIN_URL=postgresql://postgres:PASSWORD@127.0.0.1:5432/postgres pytest
+```
 
-# Solar-date conversion (JavaScript) vs jdatetime for every day of Solar 1200-1633,
-# and vs Node's ICU calendar for 1200-1500 (the SQL versions are checked in pytest)
+**Solar-date conversion** in JavaScript, checked against `jdatetime` for every day of Solar 1200-1633 and against
+Node's ICU calendar for 1200-1500 (the SQL versions are checked in pytest):
+
+```bash
 python tests/gen_jalali_expected.py /tmp/jd.json
 node tests/jalali.test.js /tmp/jd.json
+```
 
-# Colour contrast of the palette (WCAG AA), reads the variables from style.css
+**Colour contrast** of the palette (WCAG AA), reading the variables from `style.css`:
+
+```bash
 node tests/contrast.test.js
+```
 
-# Against a running server whose database is EMPTY and disposable (these tests add and delete rows):
+**UI and browser tests.** Run these against a server whose database is **empty and disposable** (they add and delete rows):
+
+```bash
 npm install --no-save jsdom puppeteer-core @sparticuz/chromium
 node tests/ui.test.js http://127.0.0.1:8000             # every qaem UI flow, simulated browser
 node tests/shahran.ui.test.js http://127.0.0.1:8000     # every shahran UI flow (and that qaem still opens)
@@ -165,10 +269,12 @@ node tests/browser.test.js http://127.0.0.1:8000        # real headless Chromium
 
 ## Adding a project
 
-1. New schema + numbered SQL files in `<project>/db/`.
-2. `<project>/backend/routes.py` with an `APIRouter(prefix="/api/<project>")`; include it in `app/main.py`.
-3. `frontend/<project>.js` exposing `window.<Name>View = { mount(container) }`; add it to `VIEWS` in `frontend/app.js`
-   and add its `<script>` tag to `frontend/index.html`.
+1. Add a new schema and numbered SQL files in `<project>/db/`, and list the files in `SCHEMA` in `desktop.py` so the
+   embedded database creates them.
+2. Add `<project>/backend/routes.py` with an `APIRouter(prefix="/api/<project>")`, and include it in `app/main.py`.
+3. Add `frontend/<project>.js` exposing `window.<Name>View = { mount(container) }`; register it in `VIEWS` in
+   `frontend/app.js` and add its `<script>` tag to `frontend/index.html`.
 4. Set `active: True` for it in `PROJECTS` in `app/main.py`.
 5. Grant the `me_app` role access to the new schema (see `shahran/db/003_app_grants.sql`).
 6. To add downloads, give its `routes.py` an `/export/{table}` route that calls `export_file` from `app/export.py`.
+7. If the project has its own SQL folder, add it to the `--add-data` flags of the PyInstaller command.
