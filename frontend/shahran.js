@@ -6,7 +6,7 @@
   var SALARY_MAX = 1000000000000;
   /* Default work time pre-filled in the time sheet form. <input type="time"> always needs 24-hour "HH:MM". */
   var DEFAULT_ARRIVAL = '08:00';
-  var DEFAULT_EXIT = '16:00';
+  var DEFAULT_EXIT = '17:00';
   var ROLES = [{ value: 'simple', label: 'کارگر ساده' }, { value: 'builder', label: 'بنا' }];
   /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
   var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
