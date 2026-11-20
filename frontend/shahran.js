@@ -4,6 +4,9 @@
   var J = root.Jalali;
   var MIN_YEAR = 1400;
   var SALARY_MAX = 1000000000000;
+  /* Default work time pre-filled in the time sheet form. <input type="time"> always needs 24-hour "HH:MM". */
+  var DEFAULT_ARRIVAL = '08:00';
+  var DEFAULT_EXIT = '16:00';
   var ROLES = [{ value: 'simple', label: 'کارگر ساده' }, { value: 'builder', label: 'بنا' }];
   /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
   var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
@@ -107,13 +110,17 @@
     var off = h('input', { name: prefix + 'is_off_day', type: 'checkbox' });
     var note = textInput(prefix + 'explanation');
     overtime.value = '۰';
+    arrival.value = DEFAULT_ARRIVAL;
+    exit.value = DEFAULT_EXIT;
 
     function setWorkers(list) {
       var keep = worker.value;
       fillSelect(worker, list.map(function (w) { return { value: w.worker_id, label: w.full_name }; }), keep);
     }
+    /* Back to the starting state of the add form: the default work time, nothing else filled. */
     function clear() {
-      arrival.value = ''; exit.value = ''; overtime.value = '۰'; holiday.checked = false; off.checked = false; note.value = '';
+      arrival.value = DEFAULT_ARRIVAL; exit.value = DEFAULT_EXIT;
+      overtime.value = '۰'; holiday.checked = false; off.checked = false; note.value = '';
     }
     function set(r) {
       var p = r.work_day.split('-').map(Number), j = J.toJalali(p[0], p[1], p[2]);
