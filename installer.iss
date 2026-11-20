@@ -1,6 +1,6 @@
 [Setup]
 AppName=Project Manager
-AppID={8CA4317D-10C5-472B-B0CD-EB7DF79CAF25}
+AppId={{8CA4317D-10C5-472B-B0CD-EB7DF79CAF25}
 AppVersion=1.1
 DefaultDirName={autopf}\ProjectManager
 DefaultGroupName=Project Manager
