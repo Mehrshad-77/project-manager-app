@@ -4,3 +4,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 node_modules/
+
+dist/
+build/
+installer/
+*.spec
+installer.local.iss
