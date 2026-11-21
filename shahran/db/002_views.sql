@@ -23,16 +23,27 @@ LEFT JOIN shahran.workers w          ON w.worker_id = t.worker_id
 LEFT JOIN shahran.daily_notes n      ON n.work_day = d.work_day
 GROUP BY d.work_day, j.jy, j.jm, n.explanation;
 
--- Monthly pay per worker: work days x the worker's fixed daily salary.
-CREATE OR REPLACE VIEW shahran.monthly_salary AS
+-- Half-day units worked by one time sheet row: 2 = full day, 1 = half day (08:00-12:00), 0 = not worked.
+-- The ONLY place that defines a half day; change the two times here if the rule changes.
+CREATE OR REPLACE FUNCTION shahran.half_days(a time, e time) RETURNS int
+LANGUAGE sql IMMUTABLE AS $$
+    SELECT CASE WHEN a IS NULL OR e IS NULL THEN 0
+                WHEN a = '08:00' AND e = '12:00' THEN 1
+                ELSE 2 END
+$$;
+
+-- Monthly pay per worker: work days (a half day counts 0.5) x the worker's fixed daily salary.
+-- Dropped first because work_days is now a decimal and CREATE OR REPLACE VIEW cannot change a column's type.
+DROP VIEW IF EXISTS shahran.monthly_salary;
+CREATE VIEW shahran.monthly_salary AS
 SELECT
     t.worker_id,
     w.full_name,
     j.jy AS solar_year,
     j.jm AS solar_month,
-    count(*) FILTER (WHERE t.arrival_time IS NOT NULL AND t.exit_time IS NOT NULL)                       AS work_days,
+    sum(shahran.half_days(t.arrival_time, t.exit_time)) * 0.5                                   AS work_days,
     w.daily_salary,
-    count(*) FILTER (WHERE t.arrival_time IS NOT NULL AND t.exit_time IS NOT NULL) * w.daily_salary      AS salary
+    round(sum(shahran.half_days(t.arrival_time, t.exit_time)) * w.daily_salary * 0.5)::bigint   AS salary
 FROM shahran.daily_time_sheet t
 JOIN shahran.workers w USING (worker_id)
 CROSS JOIN LATERAL shahran.solar_date(t.work_day) j

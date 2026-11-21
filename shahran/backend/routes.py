@@ -302,7 +302,7 @@ def delete_day_explanation(work_day: date = DayPath):
 class SalaryOut(BaseModel):
     worker_id: int
     full_name: str
-    work_days: int
+    work_days: float
     daily_salary: int
     salary: int
 

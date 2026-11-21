@@ -71,6 +71,7 @@
   function check(label, input) { return h('label', { class: 'field check' }, input, h('span', { text: label })); }
   function textInput(name, mode) { return h('input', { name: name, type: 'text', autocomplete: 'off', inputmode: mode || 'text' }); }
   function money(n) { return J.fa(Number(n).toLocaleString('en-US')).replace(/,/g, '٬'); }
+  function days(n) { return J.fa(n).replace('.', '٫'); }
   function sum(rows, key) { return rows.reduce(function (a, r) { return a + r[key]; }, 0); }
   function clock(t) { return t ? J.fa(t.slice(0, 5)) : '—'; }
   function roleName(v) { return ROLES.filter(function (r) { return r.value === v; })[0].label; }
@@ -395,10 +396,10 @@
       if (!rows.length) return payBox.replaceChildren(h('p', { class: 'empty', text: 'برای این ماه کارکردی ثبت نشده است.' }));
       var body = h('tbody');
       rows.forEach(function (r) {
-        body.append(h('tr', {}, h('td', { text: r.full_name }), h('td', { text: J.fa(r.work_days) }),
+        body.append(h('tr', {}, h('td', { text: r.full_name }), h('td', { text: days(r.work_days) }),
           h('td', { text: money(r.daily_salary) }), h('td', { text: money(r.salary) })));
       });
-      var foot = h('tfoot', {}, h('tr', {}, h('td', { text: 'جمع کل' }), h('td', { text: J.fa(sum(rows, 'work_days')) }),
+      var foot = h('tfoot', {}, h('tr', {}, h('td', { text: 'جمع کل' }), h('td', { text: days(sum(rows, 'work_days')) }),
         h('td'), h('td', { text: money(sum(rows, 'salary')) })));
       payBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('کارگر'), th('روزهای کارکرد'), th('حقوق روزانه'), th('حقوق ماه'))), body, foot));
     }

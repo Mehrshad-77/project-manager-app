@@ -316,3 +316,17 @@ def test_racing_duplicate_inserts_give_exactly_one_201_never_500(client):
     threads = [threading.Thread(target=go) for _ in range(8)]
     [t.start() for t in threads]; [t.join() for t in threads]
     assert sorted(codes) == [201] + [409] * 7
+
+
+def test_half_day_counts_half_and_pays_half(client):
+    ali, reza = worker(client, "Ali", "simple", 1_000_001), worker(client, "Reza", "builder", 2_000_000)
+    sheet(client, MEHR_1, ali, a="08:00", e="12:00")
+    assert pay(client, 1405, 7)["Ali"] == (0.5, 1_000_001, 500_001)       # 500000.5 rounds up
+    sheet(client, "2026-09-24", ali, a="08:00", e="12:00")
+    assert pay(client, 1405, 7)["Ali"] == (1, 1_000_001, 1_000_001)       # two half days = one day
+    sheet(client, "2026-09-25", ali)                                      # 07:00-16:00 = full day
+    assert pay(client, 1405, 7)["Ali"] == (2, 1_000_001, 2_000_002)
+    for day, a, e in ((MEHR_1, "08:00", "13:00"), ("2026-09-24", "07:00", "12:00"), ("2026-09-25", "08:30", "12:00")):
+        sheet(client, day, reza, a=a, e=e)                                # near-misses stay full days
+    assert pay(client, 1405, 7)["Reza"] == (3, 2_000_000, 6_000_000)
+    assert client.get(f"{BASE}/aggregated-work", params={"from": MEHR_1, "to": MEHR_1}).json()[0]["total_workers"] == 2
