@@ -21,6 +21,8 @@ LETTER_OPENING = "بسمه تعالی"
 TOTAL_LABEL = "جمع"
 SIGNATURES = ("نقشه بردار_مسئول اجراء:", "مدیریت کارگاه:")  # right box, left box (the sheet reads right to left)
 WIDTH = 20
+MONEY = '#,##0" ریال"'
+HALF_DAY = '[=0.5]"1/2";General'  # a half day shows as 1/2, like on the paper sheet
 
 
 def day_cells(d: date) -> list:
@@ -40,11 +42,23 @@ def _height(cells, widths, base=22):
     return base + 16 * (lines - 1)
 
 
-def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
+def _band(ws, items):
+    """Append one row made of merged boxes: items = [(value, number of columns it spans), ...]."""
+    ws.append([v for value, span in items for v in (value, *[None] * (span - 1))])
+    col = 1
+    for _, span in items:
+        if span > 1:
+            ws.merge_cells(start_row=ws.max_row, start_column=col, end_row=ws.max_row, end_column=col + span - 1)
+        col += span
+
+
+def export_file(project, table, fmt, rng, title, headers, rows, letter=None, boxes=None, totals=None):
     """rows: tuples whose first item is the day (a date); the rest follow `headers`.
     xlsx: a boxed table (thin black grid, heavy frame), `title` as a heading above it. With
     letter=(date, addressee, body) it is laid out like a printed letter instead: opening line and typed text
-    on top, the table, a totals row, and two empty signature boxes. The CSV is always a plain table."""
+    on top, the table, a totals row, and two empty signature boxes. With boxes=[(text, columns), ...] a row of
+    merged boxes sits between the title and the column headers; totals=[[(value, columns), ...], ...] adds
+    last rows built the same way (numbers in all but the first of them are money). The CSV is always a plain table."""
     headers = [*DAY_HEADERS, *headers]
     rows = [[*day_cells(r[0]), *r[1:]] for r in rows]
     if fmt == "xlsx":
@@ -63,6 +77,9 @@ def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
         else:
             ws.append([title])
             head = 2
+            if boxes:
+                _band(ws, boxes)
+                head = 3
         ws.append(headers)
         for r in rows:
             ws.append(r)
@@ -78,19 +95,26 @@ def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
             ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=n)
         else:
             ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
+            for t in totals or ():
+                _band(ws, t)
         last = ws.max_row
+        grid = head - 1 if boxes else head  # the grid starts at the boxes row when there is one
         for row in ws.iter_rows(max_col=n):  # creates the empty cells too, so every one gets its lines
             for c in row:
                 r, k = c.row, c.column
-                g = THIN if r >= head else None  # grid from the header row down; the heading above it has none
+                g = THIN if r >= grid else None  # grid from the header row down; the heading above it has none
                 c.border = Border(
                     left=MEDIUM if k == 1 else g, right=MEDIUM if k == n else g,
-                    top=MEDIUM if r == 1 else g, bottom=MEDIUM if r == last else THIN if r == head - 1 else g)
+                    top=MEDIUM if r == 1 else g, bottom=MEDIUM if r == last else THIN if r == grid - 1 else g)
                 if c.data_type == "f":  # typed text such as "=1+1" must stay text
                     c.data_type = "s"
                 elif isinstance(c.value, time):
                     c.number_format = "hh:mm"
-                if r >= head:
+                elif totals and r > last - len(totals) + 1 and isinstance(c.value, (int, float)):
+                    c.number_format = MONEY
+                elif boxes and r > head and c.value == 0.5:  # (the attendance sheet)
+                    c.number_format = HALF_DAY
+                if r >= grid:
                     c.alignment = CELL
         for m in ws.merged_cells.ranges:  # a merged box takes its outline from its first cell: give it the box's right edge
             first = ws.cell(m.min_row, m.min_col)
@@ -98,6 +122,12 @@ def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
                                   right=ws.cell(m.min_row, m.max_col).border.right)
         for c in ws[head]:
             c.font, c.fill = Font(bold=True, color="3B1515"), HEAD_FILL
+        if boxes:
+            for c in ws[head - 1]:
+                c.font, c.fill = Font(bold=True, color="3B1515"), HEAD_FILL
+        for r in range(last - len(totals or ()) + 1, last + 1):
+            for c in ws[r]:
+                c.font = Font(bold=True)
         centre = Alignment(horizontal="center", vertical="center")
         ws["A1"].alignment = centre
         if letter:
@@ -120,13 +150,17 @@ def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
                 ws.row_dimensions[r].height = _height(cells[:1], [total_w])
             elif letter and r == last:
                 ws.row_dimensions[r].height = 80  # room for the stamp and signature
+            elif not letter and r == 1:
+                ws.row_dimensions[r].height = _height(cells[:1], [total_w], 28)  # the title spans the whole table
+            elif boxes and r == head - 1:
+                ws.row_dimensions[r].height = 28
             else:
                 ws.row_dimensions[r].height = _height(cells, widths, 28 if r == 1 else 22)
         # on screen: header stays visible. On paper: A4, whole table one page wide, header repeated on every page.
         if not letter:
-            ws.freeze_panes = "A3"
+            ws.freeze_panes = f"A{head + 1}"
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
-        ws.page_setup.orientation = "landscape" if n > 5 else "portrait"
+        ws.page_setup.orientation = "landscape" if n > (10 if boxes else 5) else "portrait"  # 31 day-rows fit one portrait page
         ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
         ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
         ws.print_title_rows = f"{head if letter else 1}:{head}"
@@ -138,7 +172,7 @@ def export_file(project, table, fmt, rng, title, headers, rows, letter=None):
     else:
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(headers)
+        w.writerow([_csv_safe(v) for v in headers])  # worker names are typed text too
         for r in rows:
             w.writerow([v.strftime("%H:%M") if isinstance(v, time) else _csv_safe(v) for v in r])
         content, media = buf.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8"  # BOM: Excel reads Farsi correctly

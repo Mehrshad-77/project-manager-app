@@ -1,9 +1,10 @@
-"""shahran API: workers, daily time sheet (attendance), aggregated daily counts and monthly pay."""
+"""shahran API: workers, daily time sheet, aggregated daily counts, monthly attendance sheet and monthly pay."""
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+import jdatetime
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from psycopg import sql
@@ -298,6 +299,97 @@ def delete_day_explanation(work_day: date = DayPath):
     return delete("daily_notes", {"work_day": work_day})
 
 
+# ---------- monthly attendance sheet (حضور و غیاب ماهانه): one column per worker ----------
+Role = Literal["simple", "builder"]
+
+
+class AttendanceWorker(BaseModel):
+    worker_id: int
+    full_name: str
+    daily_salary: int
+    pay: int  # work days x daily salary for the range (same rounding as the monthly pay view)
+
+
+class AttendanceDay(BaseModel):
+    work_day: date
+    arrival_time: time | None  # earliest arrival of the people who worked that day
+    exit_time: time | None  # latest exit of the people who worked that day
+    units: list[int]  # one per worker, same order as `workers`: 2 = full day, 1 = half day, 0 = did not work
+    explanation: str | None  # the day's explanation (the same one the aggregated sheet shows)
+
+
+class AttendanceOut(BaseModel):
+    workers: list[AttendanceWorker]
+    days: list[AttendanceDay]
+    totals: list[float]  # work days per worker (a half day counts 0.5)
+    total_pay: int
+    total_pay_words: str  # total_pay written in Farsi words (without the unit)
+
+
+ONES = ("", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه", "ده", "یازده", "دوازده", "سیزده", "چهارده",
+        "پانزده", "شانزده", "هفده", "هجده", "نوزده")
+TENS = ("", "", "بیست", "سی", "چهل", "پنجاه", "شصت", "هفتاد", "هشتاد", "نود")
+HUNDREDS = ("", "صد", "دویست", "سیصد", "چهارصد", "پانصد", "ششصد", "هفتصد", "هشتصد", "نهصد")
+SCALES = ("", "هزار", "میلیون", "میلیارد", "هزار میلیارد", "میلیون میلیارد")
+
+
+def farsi_words(n: int) -> str:
+    """891000000 -> 'هشتصد و نود و یک میلیون'."""
+    if n == 0:
+        return "صفر"
+    parts = []
+    for scale in SCALES:
+        n, g = divmod(n, 1000)
+        if g:
+            small = [HUNDREDS[g // 100], ONES[g % 100] if g % 100 < 20 else TENS[g % 100 // 10], ONES[g % 10] if g % 100 >= 20 else ""]
+            words = " و ".join(p for p in small if p)
+            parts.append("هزار" if (g, scale) == (1, "هزار") else words + (" " + scale if scale else ""))
+        if not n:
+            break
+    return " و ".join(reversed(parts))
+
+
+def fetch_attendance(rng, role):
+    """One row for every day from `from` to `to`; one column for each worker of `role` who has a time sheet row in
+    that range. A half day is whatever shahran.half_days says, so pay and this sheet can never disagree."""
+    sheet = run(
+        """SELECT t.work_day, t.worker_id, w.full_name, w.daily_salary, t.arrival_time, t.exit_time,
+                  shahran.half_days(t.arrival_time, t.exit_time) AS units
+           FROM shahran.daily_time_sheet t JOIN shahran.workers w USING (worker_id)
+           WHERE w.role = %s AND t.work_day BETWEEN %s AND %s
+           ORDER BY w.full_name, w.worker_id""",
+        (role, *rng),
+    )
+    names = {}  # worker_id -> (name, daily salary), in name order
+    cells = {}  # (day, worker_id) -> row
+    for r in sheet:
+        names.setdefault(r["worker_id"], (r["full_name"], r["daily_salary"]))
+        cells[r["work_day"], r["worker_id"]] = r
+    days = []
+    for d in fetch_aggregated(rng):  # every day of the range, with its explanation
+        rows = [cells.get((d["work_day"], i)) for i in names]
+        worked = [r for r in rows if r and r["units"]]
+        days.append({
+            "work_day": d["work_day"],
+            "arrival_time": min((r["arrival_time"] for r in worked), default=None),
+            "exit_time": max((r["exit_time"] for r in worked), default=None),
+            "units": [r["units"] if r else 0 for r in rows],
+            "explanation": d["explanation"],
+        })
+    units = [sum(day["units"][k] for day in days) for k in range(len(names))]  # half-days per worker
+    pay = [(u * s + 1) // 2 for u, (_, s) in zip(units, names.values())]  # units/2 days x salary, halves rounded up
+    return {
+        "workers": [{"worker_id": i, "full_name": n, "daily_salary": s, "pay": p} for (i, (n, s)), p in zip(names.items(), pay)],
+        "days": days, "totals": [u / 2 for u in units], "total_pay": sum(pay), "total_pay_words": farsi_words(sum(pay)),
+    }
+
+
+@router.get("/attendance", response_model=AttendanceOut)
+def attendance(rng: tuple[date, date] = Depends(date_range), role: Role = "simple"):
+    """The monthly attendance sheet for one role (see fetch_attendance)."""
+    return fetch_attendance(rng, role)
+
+
 # ---------- monthly pay ----------
 class SalaryOut(BaseModel):
     worker_id: int
@@ -346,17 +438,55 @@ EXPORTS = {
 }
 
 
+# ---- the attendance sheet's download: title, three boxes, one column per worker, a totals row ----
+SITE = "کارگاه تونل دسترسی تهران_شمال پروژه شهران"
+CONTRACTOR = "پیمانکار اسکندری"
+ROLE_NAMES = {"simple": "کارگر ساده", "builder": "بنا"}
+MONTHS = ("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند")
+FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+DASH = "—"
+
+
+def whole(x):
+    return int(x) if x == int(x) else x  # 12.0 -> 12, 13.5 stays
+
+
+def export_attendance(fmt, rng, role):
+    a = fetch_attendance(rng, role)
+    j = jdatetime.date.fromgregorian(date=rng[0])
+    title = f"{SITE} ({MONTHS[j.month - 1]} {str(j.year).translate(FA_DIGITS)})"
+    one = lambda u: (1 if u == 2 else 0.5) if u else DASH  # full day, half day, not worked
+    rows = [(d["work_day"], hm(d["arrival_time"]) or DASH, hm(d["exit_time"]) or DASH, *map(one, d["units"]), d["explanation"])
+            for d in a["days"]]
+    headers = ["ساعت ورود", "ساعت خروج", *(w["full_name"] for w in a["workers"]), "توضیحات"]
+    boxes = [(CONTRACTOR, 3), ("حضور‌غیاب کل‌ماه", len(a["workers"])), (f"سمت:{ROLE_NAMES[role]}", 1)]
+    ws = a["workers"]
+    totals = [  # work days, then the wage rows (money, with the unit in the cell format)
+        [("جمع کل کارکرد", 1), (whole(sum(a["totals"])), 2), *[(whole(t), 1) for t in a["totals"]], (None, 1)],
+        [("دستمزد روزانه", 3), *[(w["daily_salary"], 1) for w in ws], (None, 1)],
+        [("دستمزد قابل پرداخت", 3), *[(w["pay"], 1) for w in ws], (None, 1)],
+        [("جمع دستمزد قابل پرداخت", 3), (a["total_pay"], len(ws) + 1)],
+        [("مبلغ به حروف", 3), (f"{a['total_pay_words']} ریال", len(ws) + 1)],
+    ]
+    return export_file("shahran", f"attendance-{role}", fmt, rng, title, headers, rows,
+                       boxes=[b for b in boxes if b[1]], totals=totals)
+
+
 @router.get("/export/{table}")
 def export(
-    table: Literal["time-sheet", "aggregated-work"],
+    table: Literal["time-sheet", "aggregated-work", "attendance"],
     fmt: Literal["xlsx", "csv"] = Query("xlsx", alias="format"),
     rng: tuple[date, date] = Depends(date_range),
     letter_date: str = Query("", max_length=30),
     letter_to: str = Query("", max_length=300),
     letter_body: str = Query("", max_length=1000),
+    role: Role = "simple",
 ):
-    """Download the time sheet or the aggregated sheet for a date range as .xlsx or CSV (same rows as the screen).
-    The aggregated .xlsx is laid out as a letter; its date, addressee and text are typed by the person (letter_*)."""
+    """Download the time sheet, the aggregated sheet or the attendance sheet (of one `role`) for a date range as .xlsx
+    or CSV (same rows as the screen). The aggregated .xlsx is laid out as a letter; its date, addressee and text are
+    typed by the person (letter_*)."""
+    if table == "attendance":
+        return export_attendance(fmt, rng, role)
     fetch, title, columns = EXPORTS[table]
     rows = [(r["work_day"], *(get(r) for _, get in columns)) for r in fetch(rng)]
     letter = tuple(t.strip() for t in (letter_date, letter_to, letter_body)) if table == "aggregated-work" else None

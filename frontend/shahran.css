@@ -16,3 +16,7 @@ textarea { width: 100%; font: inherit; color: inherit; padding: .55rem .8rem; bo
 textarea:focus { outline: 3px solid var(--focus); outline-offset: 2px; border-color: var(--brand); }
 
 .letter { margin-bottom: 1rem; }
+
+.att-role { margin-bottom: 1rem; }
+/* attendance sheet: centred cells in a light grid, like the printed sheet */
+.att th, .att td { text-align: center; border: 1px solid var(--line); }
