@@ -278,3 +278,25 @@ node tests/browser.test.js http://127.0.0.1:8000        # real headless Chromium
 5. Grant the `me_app` role access to the new schema (see `shahran/db/003_app_grants.sql`).
 6. To add downloads, give its `routes.py` an `/export/{table}` route that calls `export_file` from `app/export.py`.
 7. If the project has its own SQL folder, add it to the `--add-data` flags of the PyInstaller command.
+
+**Projects table** — change the shahran row to:
+`| shahran | Done | Workers, daily time sheet (attendance), daily counts per role, monthly pay, and the Kohsar shotcrete invoice |`
+
+**API: shahran table** — add a row:
+`| POST /export/invoice | Download the Kohsar shotcrete invoice (فاکتور شاتکریت کوهسار) as .xlsx. One form field, `data`, holds the invoice as JSON (see `Invoice` in `shahran/backend/invoice.py`); nothing is stored; 422 on bad values |`
+
+**Export to Excel section** — add a bullet:
+- **Invoice (فاکتور شاتکریت کوهسار).** Its own tab in shahran, Excel only (no CSV: it is a form, not a table). Everything is typed on the
+  page and sent with the download; nothing is saved. One landscape A4 page: title row with number and date, contractor boxes, employer
+  rows, an items table (مبلغ کل = تعداد × مبلغ واحد; last column = مبلغ کل + مالیات و عوارض; the discount is shown only), always at
+  least 4 numbered rows, جمع کل as a number and in Farsi words in the same row, نقدی / غیر نقدی tick, شماره شبا and five signature
+  boxes. Limits: 30 rows, amounts up to 10^13 rials, quantity up to 3 decimals (halves round up). The Farsi words are written twice
+  (`rialWords` in `frontend/shahran.js` for the screen, `rial_words` in `shahran/backend/invoice.py` for the file); both are tested
+  against the same values.
+
+**Tests section** — add:
+```bash
+python -m pytest tests/test_shahran_invoice.py            # invoice API + the Excel file, cell by cell
+node tests/shahran.invoice.ui.test.js http://127.0.0.1:8000   # the tab in jsdom (needs no data)
+node tests/invoice.browser.test.js http://127.0.0.1:8000      # real Chromium: posts the form, saves the .xlsx
+```

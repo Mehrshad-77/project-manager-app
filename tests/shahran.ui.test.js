@@ -46,13 +46,14 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   const indexOfRow = (pred) => rowsOf().findIndex(pred);
 
   /* ---------- 1. selector ---------- */
+  while (!$('.project-card')) await sleep(30);          // the selector is drawn after the scripts load and /api/projects answers
   await settle();
   let cards = $$('.project-card');
   check('selector lists 3 projects', cards.map((c) => c.dataset.project).join() === 'qaem,shahran,self');
   check('qaem and shahran are open, self is "به‌زودی"', cards.map((c) => !c.disabled).join() === 'true,true,false' && text(cards[2]).includes('به‌زودی'));
   cards[1].click(); await settle();
   check('back button visible and page heading is the shahran project', !$('#back').hidden && text($('.page-head h2')) === 'پروژه شهران', text($('.page-head h2')));
-  check("five tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران", $$(".tabs button").map(text));
+  check("six tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار", $$(".tabs button").map(text));
   check('sheet tab is selected first', $$('.tabs button')[0].getAttribute('aria-selected') === 'true');
   const today = J.todayJalali();
   check('date pickers default to today (Solar)', +named('year').value === today.jy && +named('month').value === today.jm && +named('day').value === today.jd);
@@ -140,7 +141,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('absent row: dashes and the explanation', absent[2] === '—' && absent[3] === '—' && absent[7] === 'غایب', absent);
   const stored = await (await fetch(BASE + '/api/shahran/time-sheet?from=2026-09-23&to=2026-10-22')).json();
   check('database holds the GREGORIAN dates of the Solar picks', stored.map((r) => r.work_day).sort().join() === '2026-09-23,2026-10-22,2026-10-22,2026-10-22', stored.map((r) => r.work_day));
-  check('form cleared except the date', named('arrival_time', f()).value === '' && named('explanation', f()).value === '' && +named('day', f()).value === 30);
+  check('form back to the default work time (08:00-17:00) except the date', named('arrival_time', f()).value === '08:00' && named('exit_time', f()).value === '17:00' && named('explanation', f()).value === '' && +named('day', f()).value === 30);
   await addRow(1405, 7, 5, 'Hasan', '08:00', '');
   check('only one time -> Farsi message, nothing added', msg() === 'ساعت ورود و ساعت خروج باید هر دو پر یا هر دو خالی باشند.' && rowsOf().length === 4, msg());
   await addRow(1405, 7, 5, 'Hasan', '08:00', '17:00', { overtime: 'abc' });
@@ -165,7 +166,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   rowButton(i, 'edit').click();
   check('pop-up prefilled with the row (Solar date, times, worker)', isOpen() && named('edit_arrival_time').value === '07:00' && named('edit_exit_time').value === '16:00' &&
     +named('edit_year').value === 1405 && +named('edit_month').value === 8 && +named('edit_day').value === 1 && text(named('edit_worker_id').selectedOptions[0]) === 'Ali');
-  check('main add form untouched while editing', named('arrival_time', f()).value === '');
+  check('main add form untouched while editing', named('arrival_time', f()).value === '08:00');
   await submitForm($('dialog form'));
   check('no change -> refused', popupMsg() === 'تغییری ایجاد نشده است.');
   named('edit_exit_time').value = ''; await submitForm($('dialog form'));
@@ -259,7 +260,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('qaem can still add a row', $$('tbody tr').length >= 1 && text($('.msg')) === 'ردیف افزوده شد.', text($('.msg')));
   $('#back').click(); await settle();
   $$('.project-card')[1].click(); await settle();
-  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 5);
+  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 6);
   check('no JavaScript errors anywhere in the run', errors.length === 0, errors.slice(0, 3));
 
   console.log(`${checks} checks, ${failures} failures`);

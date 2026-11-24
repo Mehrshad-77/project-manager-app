@@ -11,12 +11,28 @@
   /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
   var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
   var LETTER_BODY = 'با سلام, احتراما بدینوسیله به استحضار میرساند جهت تجهیز و اماده سازی کارگاه در تاریخ های ذیل نفرات با کارگاه همکاری نمودند';
-  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران']];
+  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران'], ['invoice', 'فاکتور شاتکریت کوهسار']];
   /* Headings of the attendance sheet (the same texts are used by the Excel file). */
   var SITE = 'کارگاه تونل دسترسی تهران_شمال پروژه شهران';
   var CONTRACTOR = 'پیمانکار اسکندری';
   var ATT_BOX = 'حضور‌غیاب کل‌ماه';
   var HALF_DAY = J.fa('1/2');
+  /* Invoice tab (فاکتور شاتکریت کوهسار). Limits are the same as in shahran/backend/invoice.py. */
+  var MONEY_MAX = 10000000000000n;   // every amount and every row total (BigInt: exact, whatever the size)
+  var QTY_MAX = 1000000n;
+  var MAX_ITEMS = 30;
+  /* [name sent to the server, label, extra CSS class, longest text allowed] */
+  var CONTRACTOR_FIELDS = [['contractor_name', 'نام شخص حقوقی', '', 150], ['contractor_address', 'نشانی کامل', 'wide', 300],
+    ['contractor_economic_no', 'شماره اقتصادی', '', 30], ['contractor_postal_code', 'کد پستی', '', 30],
+    ['contractor_national_id', 'شماره ملی', '', 30], ['contractor_phone', 'شماره تماس', '', 40]];
+  var EMPLOYER_FIELDS = [['employer_name', 'نام شخص حقیقی/حقوقی', '', 150], ['employer_economic_no', 'شماره اقتصادی', '', 30],
+    ['employer_registration_no', 'شماره ثبت/ملی', '', 30], ['employer_address', 'نشانی', 'wide', 300], ['employer_phone', 'تلفن', '', 40]];
+  var ITEM_HEADS = ['ردیف', 'شرح کالا', 'واحد کالا', 'تعداد', 'مبلغ واحد (ریال)', 'مبلغ کل (ریال)', 'جمع مالیات و عوارض (ریال)',
+    'مبلغ تخفیف', 'جمع کل به علاوه مالیات و عوارض (ریال)', ''];
+  var ONES = ['', 'یک', 'دو', 'سه', 'چهار', 'پنج', 'شش', 'هفت', 'هشت', 'نه', 'ده', 'یازده', 'دوازده', 'سیزده', 'چهارده', 'پانزده', 'شانزده', 'هفده', 'هجده', 'نوزده'];
+  var TENS = ['', '', 'بیست', 'سی', 'چهل', 'پنجاه', 'شصت', 'هفتاد', 'هشتاد', 'نود'];
+  var HUNDREDS = ['', 'صد', 'دویست', 'سیصد', 'چهارصد', 'پانصد', 'ششصد', 'هفتصد', 'هشتصد', 'نهصد'];
+  var SCALES = ['', 'هزار', 'میلیون', 'میلیارد', 'تریلیون'];
 
   function h(tag, props) {
     var el = document.createElement(tag);
@@ -79,6 +95,30 @@
   function days(n) { return J.fa(n).replace('.', '٫'); }
   function sum(rows, key) { return rows.reduce(function (a, r) { return a + r[key]; }, 0); }
   function clock(t) { return t ? J.fa(t.slice(0, 5)) : '—'; }
+  /* 999000000n -> 'نهصد و نود و نه میلیون ریال' (the same words as rial_words in shahran/backend/invoice.py). */
+  function rialWords(n) {
+    var parts = [], scale = 0, g, r, w;
+    if (n === 0n) return 'صفر ریال';
+    for (; n > 0n; n /= 1000n, scale += 1) {
+      g = Number(n % 1000n);
+      if (!g) continue;
+      r = g % 100;
+      w = [HUNDREDS[Math.floor(g / 100)], r < 20 ? ONES[r] : TENS[Math.floor(r / 10)], r >= 20 ? ONES[r % 10] : ''].filter(Boolean).join(' و ');
+      parts.unshift(w + (SCALES[scale] ? ' ' + SCALES[scale] : ''));
+    }
+    return parts.join(' و ') + ' ریال';
+  }
+  /* What the person typed -> BigInt, or null when it is not a whole number. An empty box is 0 unless it is required. */
+  function amount(text, required) {
+    var s = J.en(text).replace(/[٬,\s]/g, '');
+    if (!s) return required ? null : 0n;
+    return /^\d+$/.test(s) ? BigInt(s) : null;
+  }
+  /* Quantity with up to 3 decimals: {text: '222.5', thousandths: 222500n} or null. */
+  function quantity(text) {
+    var m = /^(\d+)(?:\.(\d{1,3}))?$/.exec(J.en(text).replace(/[٬,\s]/g, '').replace(/٫/g, '.'));
+    return m ? { text: m[1] + (m[2] ? '.' + m[2] : ''), thousandths: BigInt(m[1] + (m[2] || '').padEnd(3, '0')) } : null;
+  }
   function roleName(v) { return ROLES.filter(function (r) { return r.value === v; })[0].label; }
 
   /* Day / month / year selects for a Solar date; the day list follows the month and leap years. */
@@ -455,8 +495,121 @@
       payBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('کارگر'), th('روزهای کارکرد'), th('حقوق روزانه'), th('حقوق ماه'))), body, foot));
     }
 
+    /* ---- invoice tab: typed here and never stored; the server turns it into the Excel file ---- */
+    var invInputs = {};
+    function invBox(specs) {
+      var box = h('div', { class: 'fields' });
+      specs.forEach(function (f) {
+        var input = textInput(f[0]);
+        input.setAttribute('maxlength', f[3]);
+        invInputs[f[0]] = input;
+        box.append(field(f[1], input, f[2]));
+      });
+      return box;
+    }
+    var invNumber = textInput('invoice_number');
+    invNumber.setAttribute('maxlength', 30);
+    var invPicker = datePicker(today, 'invoice_');
+    var invPayment = h('select', { name: 'invoice_payment' });
+    fillSelect(invPayment, [{ value: '', label: '—' }, { value: 'cash', label: 'نقدی' }, { value: 'non_cash', label: 'غیر نقدی' }], '');
+    var invSheba = textInput('invoice_sheba');
+    invSheba.setAttribute('maxlength', 200);
+    var invMsg = h('p', { class: 'msg', role: 'alert' });
+    var invFrame = h('iframe', { name: 'invoice_download', title: 'دانلود', hidden: '' });   // the download lands here, so this page stays
+
+    var itemRows = [];
+    var itemsBody = h('tbody');
+    var sumNumber = h('strong', { class: 'sum-number' });
+    var sumWords = h('span', { class: 'sum-words' });
+    var addItemBtn = h('button', { type: 'button', class: 'secondary', text: 'افزودن ردیف', onclick: function () { addItem(); } });
+
+    function itemRow() {
+      var r = { desc: textInput('item_description'), unit: textInput('item_unit'), qty: textInput('item_quantity', 'decimal'),
+        price: textInput('item_unit_price', 'numeric'), tax: textInput('item_tax', 'numeric'), disc: textInput('item_discount', 'numeric'),
+        total: h('td'), final: h('td') };
+      r.desc.setAttribute('maxlength', 300);
+      r.unit.setAttribute('maxlength', 30);
+      r.tr = h('tr', {}, h('td'), h('td', { class: 'desc' }, r.desc), h('td', {}, r.unit), h('td', {}, r.qty), h('td', {}, r.price), r.total,
+        h('td', {}, r.tax), h('td', {}, r.disc), r.final,
+        h('td', { class: 'row-actions' }, h('button', { type: 'button', class: 'danger', text: 'حذف', onclick: function () { removeItem(r); } })));
+      r.tr.addEventListener('input', recalc);
+      return r;
+    }
+    function addItem() { var r = itemRow(); itemRows.push(r); itemsBody.append(r.tr); recalc(); return r; }
+    function removeItem(r) {
+      itemRows.splice(itemRows.indexOf(r), 1);
+      r.tr.remove();
+      if (!itemRows.length) addItem(); else recalc();
+    }
+
+    /* Fills each row's two computed cells and the grand total. Returns {items, error}: the rows to send (empty rows are
+       left out) and the first problem found, in Farsi. */
+    function recalc() {
+      var items = [], total = 0n, error = '';
+      itemRows.forEach(function (r, i) {
+        var v = [r.desc, r.unit, r.qty, r.price, r.tax, r.disc].map(function (e) { return e.value.trim(); });
+        var q, p, t, d, line, problem = '';
+        r.tr.firstChild.textContent = J.fa(i + 1);
+        r.total.textContent = r.final.textContent = '—';
+        if (!v.some(Boolean)) return;
+        q = quantity(v[2]); p = amount(v[3], true); t = amount(v[4]); d = amount(v[5]);
+        if (!v[0]) problem = 'شرح کالا را وارد کنید.';
+        else if (!q) problem = 'تعداد باید یک عدد (حداکثر با سه رقم اعشار) باشد.';
+        else if (p === null) problem = 'مبلغ واحد باید یک عدد صحیح صفر یا بیشتر باشد.';
+        else if (t === null) problem = 'جمع مالیات و عوارض باید یک عدد صحیح صفر یا بیشتر باشد.';
+        else if (d === null) problem = 'مبلغ تخفیف باید یک عدد صحیح صفر یا بیشتر باشد.';
+        else {
+          line = (q.thousandths * p + 500n) / 1000n;   // تعداد × مبلغ واحد, whole rials, halves round up
+          if (q.thousandths > QTY_MAX * 1000n || p > MONEY_MAX || t > MONEY_MAX || d > MONEY_MAX || line > MONEY_MAX) problem = 'تعداد یا مبلغ بیش از حد مجاز است.';
+        }
+        if (problem) { error = error || 'ردیف ' + J.fa(i + 1) + ': ' + problem; return; }
+        r.total.textContent = money(line);
+        r.final.textContent = money(line + t);
+        total += line + t;
+        items.push({ description: v[0], unit: v[1], quantity: q.text, unit_price: Number(p), tax: Number(t), discount: Number(d) });
+      });
+      sumNumber.textContent = money(total) + ' ریال';
+      sumWords.textContent = rialWords(total);
+      addItemBtn.disabled = itemRows.length >= MAX_ITEMS;
+      return { items: items, error: error };
+    }
+
+    function downloadInvoice() {
+      var r = recalc(), d = invPicker.get(), body = {}, form;
+      if (r.error) { invMsg.textContent = r.error; invMsg.className = 'msg error'; return; }
+      invMsg.textContent = ''; invMsg.className = 'msg';
+      Object.keys(invInputs).forEach(function (k) { body[k] = invInputs[k].value; });
+      body.number = invNumber.value;
+      body.date = d.jy + '/' + String(100 + d.jm).slice(1) + '/' + String(100 + d.jd).slice(1);
+      body.items = r.items;
+      body.payment = invPayment.value;
+      body.sheba = invSheba.value;
+      /* A plain form post: it has no size limit like a link and downloads the same way as the other buttons. */
+      form = h('form', { method: 'post', action: '/api/shahran/export/invoice', target: 'invoice_download', hidden: '' },
+        h('input', { type: 'hidden', name: 'data', value: JSON.stringify(body) }));
+      container.append(form);
+      form.submit();
+      form.remove();
+    }
+
+    var invoicePanel = h('div', { class: 'panel' },
+      h('section', { class: 'card' }, h('h2', { text: 'فروش کالا و خدمات' }), h('div', { class: 'fields' }, field('شماره', invNumber), invPicker.node)),
+      h('section', { class: 'card' }, h('h2', { text: 'مشخصات پیمانکار' }), invBox(CONTRACTOR_FIELDS)),
+      h('section', { class: 'card' }, h('h2', { text: 'مشخصات کارفرما' }), invBox(EMPLOYER_FIELDS)),
+      h('section', { class: 'card' }, h('h2', { text: 'مشخصات کالا یا خدمات مورد معامله' }),
+        h('div', { class: 'scroll' }, h('table', { class: 'items' }, h('thead', {}, h('tr', {}, ...ITEM_HEADS.map(th))), itemsBody)),
+        h('div', { class: 'actions' }, addItemBtn),
+        h('div', { class: 'sum' }, h('div', {}, 'جمع کل: ', sumNumber), sumWords)),
+      h('section', { class: 'card' },
+        h('div', { class: 'fields' }, field('شرایط و نحوه فروش', invPayment), field('شماره شبا', invSheba, 'wide')),
+        invMsg,
+        h('div', { class: 'actions' }, h('button', { type: 'button', text: 'دانلود Excel', onclick: downloadInvoice }))),
+      invFrame);
+    addItem();
+
     /* ---- loading ---- */
     async function load() {
+      if (tab === 'invoice') { seq += 1; return; }   // nothing to fetch: everything on this tab is typed
       var mine = ++seq, rg = J.monthRange(shown.jy, shown.jm), q = '?from=' + rg.from + '&to=' + rg.to;
       var calls = tab === 'workers' ? [api('GET', '/workers')]
         : tab === 'sheet' ? [api('GET', '/workers'), api('GET', '/time-sheet' + q)]
@@ -507,7 +660,8 @@
       agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox, 'aggregated-work', true)),
       pay: h('div', { class: 'panel' }, section('حقوق ماهانه', payBox)),
       workers: h('div', { class: 'panel' }, workerForm, section('کارگران', workersBox)),
-      att: h('div', { class: 'panel' }, section('حضور و غیاب ماهانه', attBox, 'attendance', false, h('div', { class: 'fields att-role' }, field('سمت', attRole))))
+      att: h('div', { class: 'panel' }, section('حضور و غیاب ماهانه', attBox, 'attendance', false, h('div', { class: 'fields att-role' }, field('سمت', attRole)))),
+      invoice: invoicePanel
     };
     var tabButtons = {};
     var tabBar = h('div', { class: 'tabs', role: 'tablist' });
@@ -521,7 +675,7 @@
         panels[k].hidden = k !== key;
         tabButtons[k].setAttribute('aria-selected', k === key ? 'true' : 'false');
       });
-      monthPicker.hidden = key === 'workers';
+      monthPicker.hidden = key === 'workers' || key === 'invoice';
       msg.textContent = ''; msg.className = 'msg';
       return load();
     }
@@ -531,7 +685,7 @@
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'کارکرد روزانهٔ کارگران' }), h('h2', { text: 'پروژه شهران' })),
           monthPicker)),
-      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.pay, panels.workers, panels.att),
+      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.pay, panels.workers, panels.att, panels.invoice),
       dlg
     );
     return setTab('sheet');

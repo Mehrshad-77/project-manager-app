@@ -2,16 +2,18 @@
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
 
 import jdatetime
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from psycopg import sql
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db import db
-from app.export import export_file
+from app.export import XLSX_TYPE, export_file
+from shahran.backend.invoice import Invoice, invoice_xlsx
 
 router = APIRouter(prefix="/api/shahran", tags=["shahran"])
 
@@ -491,3 +493,17 @@ def export(
     rows = [(r["work_day"], *(get(r) for _, get in columns)) for r in fetch(rng)]
     letter = tuple(t.strip() for t in (letter_date, letter_to, letter_body)) if table == "aggregated-work" else None
     return export_file("shahran", table, fmt, rng, title, [h for h, _ in columns], rows, letter)
+
+
+@router.post("/export/invoice")
+async def export_invoice(request: Request):
+    """Download the Kohsar shotcrete invoice (فاکتور شاتکریت کوهسار) as .xlsx. The page submits an ordinary form with one
+    field, `data`, holding the invoice as JSON (see Invoice in invoice.py): a form post is not limited in size like a
+    link is, and it downloads the same way the other export buttons do. Nothing is stored."""
+    data = parse_qs((await request.body()).decode("utf-8", "replace")).get("data", [""])[0]
+    try:
+        invoice = Invoice.model_validate_json(data)
+    except ValueError as e:  # pydantic's ValidationError
+        raise HTTPException(422, str(e))
+    return Response(invoice_xlsx(invoice), media_type=XLSX_TYPE,
+                    headers={"Content-Disposition": 'attachment; filename="shahran-invoice.xlsx"'})
