@@ -81,7 +81,7 @@ async function waitFor(fn, what, ms = 4000) {
   await waitFor(() => bodyRows().length === 2, 'second row');
   check('totals: day_total and month-to-date', JSON.stringify(bodyRows(1)) === JSON.stringify([[todayText, '۱۲', '۱۲']]), bodyRows(1));
   check('summary cards: month total and last-day total', $$('.stat-value').map((e) => e.textContent).join('|') === '۱۲|۱۲', $$('.stat-value').map((e) => e.textContent));
-
+  check('per-truck table: sorted by truck number', JSON.stringify(bodyRows(2)) === JSON.stringify([['۷', '۷'], ['۱۲', '۵']]), bodyRows(2));
   setSel('year', 1403); setSel('month', 12);
   check('Esfand 1403 (leap) has 30 days', $('[name=day]').options.length === 30);
   setSel('day', 30); setSel('year', 1404);
@@ -187,7 +187,7 @@ async function waitFor(fn, what, ms = 4000) {
   check('current month shows the two rows entered earlier', bodyRows().length === 2);
   setSel('view_month', today.jm === 1 ? 2 : 1);
   await waitFor(() => d.querySelector('.empty'), 'empty month');
-  check('an empty month shows the Farsi empty states', $$('.empty').length === 2);
+  check('an empty month shows the Farsi empty states', $$('.empty').length === 3);
   check('empty month: summary cards show 0 and a dash', $$('.stat-value').map((e) => e.textContent).join('|') === '۰|—', $$('.stat-value').map((e) => e.textContent));
 
   // ---- NEW: export buttons ----

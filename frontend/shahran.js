@@ -11,7 +11,7 @@
   /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
   var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
   var LETTER_BODY = 'با سلام, احتراما بدینوسیله به استحضار میرساند جهت تجهیز و اماده سازی کارگاه در تاریخ های ذیل نفرات با کارگاه همکاری نمودند';
-  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران'], ['invoice', 'فاکتور شاتکریت کوهسار'], ['statement', 'حساب مالی صورت وضعیت']];
+  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['workers', 'کارگران'], ['invoice', 'فاکتور شاتکریت کوهسار'], ['statement', 'حساب مالی صورت وضعیت']];
   /* Headings of the attendance sheet (the same texts are used by the Excel file). */
   var SITE = 'کارگاه تونل دسترسی تهران_شمال پروژه شهران';
   var CONTRACTOR = 'پیمانکار اسکندری';
@@ -92,7 +92,6 @@
   function check(label, input) { return h('label', { class: 'field check' }, input, h('span', { text: label })); }
   function textInput(name, mode) { return h('input', { name: name, type: 'text', autocomplete: 'off', inputmode: mode || 'text' }); }
   function money(n) { return J.fa(Number(n).toLocaleString('en-US')).replace(/,/g, '٬'); }
-  function days(n) { return J.fa(n).replace('.', '٫'); }
   function sum(rows, key) { return rows.reduce(function (a, r) { return a + r[key]; }, 0); }
   function clock(t) { return t ? J.fa(t.slice(0, 5)) : '—'; }
   /* 999000000n -> 'نهصد و نود و نه میلیون ریال' (the same words as rial_words in shahran/backend/invoice.py). */
@@ -481,20 +480,6 @@
           wide('مبلغ به حروف', [rest(a.total_pay_words + ' ریال')]))));
     }
 
-    /* ---- monthly pay tab ---- */
-    var payBox = h('div', { class: 'scroll' });
-    function renderPay(rows) {
-      if (!rows.length) return payBox.replaceChildren(h('p', { class: 'empty', text: 'برای این ماه کارکردی ثبت نشده است.' }));
-      var body = h('tbody');
-      rows.forEach(function (r) {
-        body.append(h('tr', {}, h('td', { text: r.full_name }), h('td', { text: days(r.work_days) }),
-          h('td', { text: money(r.daily_salary) }), h('td', { text: money(r.salary) })));
-      });
-      var foot = h('tfoot', {}, h('tr', {}, h('td', { text: 'جمع کل' }), h('td', { text: days(sum(rows, 'work_days')) }),
-        h('td'), h('td', { text: money(sum(rows, 'salary')) })));
-      payBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('کارگر'), th('روزهای کارکرد'), th('حقوق روزانه'), th('حقوق ماه'))), body, foot));
-    }
-
     /* ---- invoice tab: typed here and never stored; the server turns it into the Excel file ---- */
     var invInputs = {};
     function invBox(specs) {
@@ -614,8 +599,7 @@
       var calls = tab === 'workers' ? [api('GET', '/workers')]
         : tab === 'sheet' ? [api('GET', '/workers'), api('GET', '/time-sheet' + q)]
         : tab === 'agg' ? [api('GET', '/aggregated-work' + q)]
-        : tab === 'att' ? [api('GET', '/attendance' + q + '&role=' + attRole.value)]
-        : [api('GET', '/monthly-salary?year=' + shown.jy + '&month=' + shown.jm)];
+        : [api('GET', '/attendance' + q + '&role=' + attRole.value)];
       var res = await Promise.all(calls);
       if (mine !== seq) return;
       var bad = res.filter(function (r) { return !r.ok; })[0];
@@ -623,8 +607,7 @@
       if (tab === 'workers') { workers = res[0].data; renderWorkers(workers); }
       else if (tab === 'sheet') { workers = res[0].data; add.setWorkers(workers); renderSheet(res[1].data); }
       else if (tab === 'agg') renderAgg(res[0].data);
-      else if (tab === 'att') renderAtt(res[0].data);
-      else renderPay(res[0].data);
+      else renderAtt(res[0].data);
     }
 
     /* ---- export: downloads the displayed month of one table as .xlsx or .csv ---- */
@@ -658,7 +641,6 @@
     var panels = {
       sheet: h('div', { class: 'panel' }, sheetForm, section('کارکرد روزانهٔ ثبت‌شده', sheetBox, 'time-sheet')),
       agg: h('div', { class: 'panel' }, section('کارکرد تجمیعی ماهانه', aggBox, 'aggregated-work', true)),
-      pay: h('div', { class: 'panel' }, section('حقوق ماهانه', payBox)),
       workers: h('div', { class: 'panel' }, workerForm, section('کارگران', workersBox)),
       att: h('div', { class: 'panel' }, section('حضور و غیاب ماهانه', attBox, 'attendance', false, h('div', { class: 'fields att-role' }, field('سمت', attRole)))),
       invoice: invoicePanel,
@@ -686,7 +668,7 @@
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'کارکرد روزانهٔ کارگران' }), h('h2', { text: 'پروژه شهران' })),
           monthPicker)),
-      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.pay, panels.workers, panels.att, panels.invoice, panels.statement),
+      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.workers, panels.att, panels.invoice, panels.statement),
       dlg
     );
     return setTab('sheet');

@@ -45,7 +45,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   $$('.project-card')[1].click(); await settle();
   const calls = total;
   $$('.tabs button').find((b) => text(b) === 'فاکتور شاتکریت کوهسار').click(); await settle();
-  check('the tab opens and is selected', $$('.tabs button')[5].getAttribute('aria-selected') === 'true' && view() === $$('.panel')[5]);
+  check('the tab opens and is selected', $$('.tabs button')[4].getAttribute('aria-selected') === 'true' && view() === $$('.panel')[4]);
   check('switching to it makes no server calls and hides the month picker', total === calls && $('.month-picker').hidden === true, [total, calls]);
 
   // ---- the form, top to bottom ----

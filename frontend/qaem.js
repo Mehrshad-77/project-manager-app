@@ -213,6 +213,7 @@
     /* ---- tables ---- */
     var rowsBox = h('div', { class: 'scroll' });
     var totalsBox = h('div', { class: 'scroll' });
+    var trucksBox = h('div', { class: 'scroll' });
 
     async function remove(r) {
       if (!root.confirm('آیا از حذف این ردیف مطمئن هستید؟')) return;
@@ -251,15 +252,25 @@
       totalsBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('تاریخ'), th('جمع روز'), th('جمع ماه تا این روز'))), body));
     }
 
+    function renderTrucks(trucks) {
+  if (!trucks.length) return trucksBox.replaceChildren(h('p', { class: 'empty', text: 'برای این ماه سرویسی ثبت نشده است.' }));
+  var body = h('tbody');
+  trucks.forEach(function (t) {
+    body.append(h('tr', {}, h('td', { text: J.fa(t.truck_id) }), h('td', { text: J.fa(t.truck_total) })));
+  });
+  trucksBox.replaceChildren(h('table', {}, h('thead', {}, h('tr', {}, th('شماره کامیون'), th('جمع سرویس‌ها'))), body));
+}
+
     async function load() {
       var mine = ++seq, rg = J.monthRange(shown.jy, shown.jm);
       var q = '?from=' + rg.from + '&to=' + rg.to;
-      var res = await Promise.all([api('GET', '/services' + q), api('GET', '/totals' + q)]);
+      var res = await Promise.all([api('GET', '/services' + q), api('GET', '/totals' + q), api('GET', '/trucks' + q)]);
       if (mine !== seq) return;
-      var bad = !res[0].ok ? res[0] : !res[1].ok ? res[1] : null;
+      var bad = res.filter(function (r) { return !r.ok; })[0];
       if (bad) return say(errorText(bad), false);
       renderRows(res[0].data);
       renderTotals(res[1].data);
+      renderTrucks(res[2].data);
       renderStats(res[1].data);
     }
 
@@ -282,7 +293,7 @@
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'سرویس‌های روزانهٔ کامیون‌ها' }), h('h2', { text: 'پروژه قائم' })),
           h('div', { class: 'month-picker' }, field('ماه نمایش‌داده‌شده', vMonth), field('سال', vYear)))),
-            h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox, 'services'), section('مجموع سرویس‌های ', totalsBox, 'totals'), root.StatementCard.create()),
+            h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox, 'services'), section('مجموع سرویس‌های ', totalsBox, 'totals'), section('مجموع سرویس هر کامیون', trucksBox), root.StatementCard.create()),
       dlg
     );
     return load();

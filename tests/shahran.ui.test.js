@@ -53,7 +53,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('qaem and shahran are open, self is "به‌زودی"', cards.map((c) => !c.disabled).join() === 'true,true,false' && text(cards[2]).includes('به‌زودی'));
   cards[1].click(); await settle();
   check('back button visible and page heading is the shahran project', !$('#back').hidden && text($('.page-head h2')) === 'پروژه شهران', text($('.page-head h2')));
-  check("seven tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار|حساب مالی صورت وضعیت", $$(".tabs button").map(text));
+  check("six tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|کارگران|فاکتور شاتکریت کوهسار|حساب مالی صورت وضعیت", $$(".tabs button").map(text));
   check('sheet tab is selected first', $$('.tabs button')[0].getAttribute('aria-selected') === 'true');
   const today = J.todayJalali();
   check('date pickers default to today (Solar)', +named('year').value === today.jy && +named('month').value === today.jm && +named('day').value === today.jd);
@@ -231,27 +231,12 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   rowButton(2, 'edit').click(); named('day_explanation').value = '  '; await submitForm($('dialog form'));
   check('emptying the explanation clears it', !isOpen() && rowsOf()[2][4] === '');
 
-  /* ---------- 6. monthly pay ---------- */
-  await tab('حقوق ماهانه');
-  check('pay tab has no export bar (not requested)', $$('.export', view()).length === 0);
-  const pay = () => Object.fromEntries(rowsOf().map((r) => [r[0], r.slice(1)]));
-  let p = pay();
-  check('Mehr: Ali 2 days = 2,000,000; Reza 1 day = 1,200,000; Hasan absent = 0',
-    p.Ali.join('|') === '۲|۱٬۰۰۰٬۰۰۰|۲٬۰۰۰٬۰۰۰' && p.Reza.join('|') === '۱|۱٬۲۰۰٬۰۰۰|۱٬۲۰۰٬۰۰۰' && p.Hasan.join('|') === '۰|۲٬۰۰۰٬۰۰۰|۰', p);
-  check('Mehr total 3,200,000', footOf().pop() === '۳٬۲۰۰٬۰۰۰', footOf());
-  await setv(named('view_month'), 8); p = pay();
-  check('Aban: Ali 2,000,000 (overtime ignored), Hasan 4,000,000 (holiday work counts), Reza 0', p.Ali[2] === '۲٬۰۰۰٬۰۰۰' && p.Hasan.join('|') === '۲|۲٬۰۰۰٬۰۰۰|۴٬۰۰۰٬۰۰۰' && p.Reza[2] === '۰', p);
-  check('Aban total 6,000,000', footOf().pop() === '۶٬۰۰۰٬۰۰۰');
-  await setv(named('view_month'), 9);
-  check('month without work shows the empty message', text(view()).includes('برای این ماه کارکردی ثبت نشده است'));
-  await setv(named('view_month'), 8);
-
-  /* ---------- 7. guard rails ---------- */
+  /* ---------- 6. guard rails ---------- */
   await tab('کارگران');
   confirmAnswer = true; rowButton(indexOfRow((r) => r[0] === 'Hasan'), 'del').click(); await settle();
   check('deleting a worker with rows is refused in Farsi', msg().includes('ردیف کارکرد دارد') && rowsOf().some((r) => r[0] === 'Hasan'), msg());
 
-  /* ---------- 8. back to the selector, qaem still works ---------- */
+  /* ---------- 7. back to the selector, qaem still works ---------- */
   $('#back').click(); await settle();
   check('back returns to the selector', $('#back').hidden && $$('.project-card').length === 3 && !$('.tabs'));
   $$('.project-card')[0].click(); await settle();
@@ -260,7 +245,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('qaem can still add a row', $$('tbody tr').length >= 1 && text($('.msg')) === 'ردیف افزوده شد.', text($('.msg')));
   $('#back').click(); await settle();
   $$('.project-card')[1].click(); await settle();
-  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 7);
+  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 6);
   check('no JavaScript errors anywhere in the run', errors.length === 0, errors.slice(0, 3));
 
   console.log(`${checks} checks, ${failures} failures`);

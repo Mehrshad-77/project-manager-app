@@ -74,6 +74,10 @@ class DayTotal(BaseModel):
     day_total: int
     month_total: int
 
+class TruckTotal(BaseModel):
+    truck_id: int
+    truck_total: int
+
 
 def date_range(date_from: date = Query(alias="from"), date_to: date = Query(alias="to")):
     if date_to < date_from:
@@ -164,6 +168,17 @@ def fetch_totals(rng):
         return conn.execute(
             """SELECT service_day, day_total, month_total FROM qaem.daily_totals
                WHERE service_day BETWEEN %s AND %s ORDER BY service_day""",
+            rng,
+        ).fetchall()
+
+
+@router.get("/trucks", response_model=list[TruckTotal])
+def truck_totals(rng: tuple[date, date] = Depends(date_range)):
+    """Total services per truck over the range, in truck-number order."""
+    with db() as conn:
+        return conn.execute(
+            """SELECT truck_id, SUM(truck_service_count) AS truck_total FROM qaem.daily_truck_services
+               WHERE service_day BETWEEN %s AND %s GROUP BY truck_id ORDER BY truck_id""",
             rng,
         ).fetchall()
 

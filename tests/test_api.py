@@ -175,6 +175,7 @@ def test_list_is_ordered_and_range_inclusive(client):
 def test_list_and_totals_reject_bad_ranges(client, params):
     assert client.get(f"{BASE}/services", params=params).status_code == 422
     assert client.get(f"{BASE}/totals", params=params).status_code == 422
+    assert client.get(f"{BASE}/trucks", params=params).status_code == 422
 
 
 # ---------- totals ----------
@@ -274,3 +275,12 @@ def test_racing_duplicate_inserts_give_exactly_one_201_never_500(client):
     [t.start() for t in threads]; [t.join() for t in threads]
     assert sorted(codes) == [201] + [409] * 7
     assert len(rows(client)) == 1
+
+
+def test_truck_totals_sum_per_truck_within_range(client):
+    add(client, "2026-10-01", 12, 5); add(client, "2026-10-02", 12, 3)
+    add(client, "2026-10-01", 7, 7); add(client, "2026-10-03", 21, 0)
+    add(client, "2026-09-01", 7, 100)   # outside the range: must not count
+    got = client.get(f"{BASE}/trucks", params={"from": "2026-10-01", "to": "2026-10-31"}).json()
+    assert got == [{"truck_id": 7, "truck_total": 7}, {"truck_id": 12, "truck_total": 8}, {"truck_id": 21, "truck_total": 0}]
+    assert client.get(f"{BASE}/trucks", params={"from": "2027-01-01", "to": "2027-01-31"}).json() == []
