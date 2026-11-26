@@ -41,7 +41,7 @@ const post = async (path, body) => { const r = await fetch(BASE + '/api/shahran'
   while (!$('.project-card')) await sleep(30);          // the selector is drawn after /api/projects answers
   await settle();
   $$('.project-card')[1].click(); await settle();        // shahran is the second card (qaem is the first)
-  check('six tabs, the attendance one after the aggregated sheet and the invoice last', $$('.tabs button').map(text).join('|') === 'کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار', $$('.tabs button').map(text));
+  check('seven tabs, the attendance one after the aggregated sheet and the statement last', $$('.tabs button').map(text).join('|') === 'کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار|حساب مالی صورت وضعیت', $$('.tabs button').map(text));
   await tab('حضور و غیاب ماهانه');
   check('the tab is selected and the month picker stays visible', $$('.tabs button')[2].getAttribute('aria-selected') === 'true' && $('.month-picker').hidden === false);
   await setv(named('view_month'), 8);

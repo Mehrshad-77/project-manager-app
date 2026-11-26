@@ -157,3 +157,13 @@ dialog .date-row select { flex: 1; min-width: 0; }
   .row-actions button { padding: .2rem .45rem; font-size: .78rem; }
   .row-actions button + button { margin-inline-start: .2rem; }
 }
+
+/* ---- final statements account (shared card on every project page) ---- */
+.stmt { table-layout: fixed; }
+.stmt th, .stmt td { text-align: center; white-space: normal; border: 1px solid var(--line); border-radius: 0; padding: .4rem .35rem; }
+.stmt input { width: 100%; min-width: 0; }
+.stmt-wrap { overflow-x: auto; }
+@media (max-width: 40rem) {
+  .stmt th, .stmt td { padding: .3rem .2rem; font-size: .8rem; }
+  .stmt input { padding: .25rem .2rem; font-size: .8rem; min-height: 2.25rem; }
+}

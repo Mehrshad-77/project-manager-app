@@ -11,7 +11,7 @@
   /* Starting text of the letter on top of the aggregated Excel file; the person edits it before downloading. */
   var LETTER_TO = 'مدیریت محترم پروژه دسترسی به آزادراه تهران-شمال جناب آقای دکتر پروانه';
   var LETTER_BODY = 'با سلام, احتراما بدینوسیله به استحضار میرساند جهت تجهیز و اماده سازی کارگاه در تاریخ های ذیل نفرات با کارگاه همکاری نمودند';
-  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران'], ['invoice', 'فاکتور شاتکریت کوهسار']];
+  var TABS = [['sheet', 'کارکرد روزانه'], ['agg', 'کارکرد تجمیعی ماهانه'], ['att', 'حضور و غیاب ماهانه'], ['pay', 'حقوق ماهانه'], ['workers', 'کارگران'], ['invoice', 'فاکتور شاتکریت کوهسار'], ['statement', 'حساب مالی صورت وضعیت']];
   /* Headings of the attendance sheet (the same texts are used by the Excel file). */
   var SITE = 'کارگاه تونل دسترسی تهران_شمال پروژه شهران';
   var CONTRACTOR = 'پیمانکار اسکندری';
@@ -609,7 +609,7 @@
 
     /* ---- loading ---- */
     async function load() {
-      if (tab === 'invoice') { seq += 1; return; }   // nothing to fetch: everything on this tab is typed
+      if (tab === 'invoice' || tab === 'statement') { seq += 1; return; }   // nothing to fetch: everything on this tab is typed
       var mine = ++seq, rg = J.monthRange(shown.jy, shown.jm), q = '?from=' + rg.from + '&to=' + rg.to;
       var calls = tab === 'workers' ? [api('GET', '/workers')]
         : tab === 'sheet' ? [api('GET', '/workers'), api('GET', '/time-sheet' + q)]
@@ -661,7 +661,8 @@
       pay: h('div', { class: 'panel' }, section('حقوق ماهانه', payBox)),
       workers: h('div', { class: 'panel' }, workerForm, section('کارگران', workersBox)),
       att: h('div', { class: 'panel' }, section('حضور و غیاب ماهانه', attBox, 'attendance', false, h('div', { class: 'fields att-role' }, field('سمت', attRole)))),
-      invoice: invoicePanel
+      invoice: invoicePanel,
+      statement: h('div', { class: 'panel' }, root.StatementCard.create())
     };
     var tabButtons = {};
     var tabBar = h('div', { class: 'tabs', role: 'tablist' });
@@ -675,7 +676,7 @@
         panels[k].hidden = k !== key;
         tabButtons[k].setAttribute('aria-selected', k === key ? 'true' : 'false');
       });
-      monthPicker.hidden = key === 'workers' || key === 'invoice';
+      monthPicker.hidden = key === 'workers' || key === 'invoice' || key === 'statement';
       msg.textContent = ''; msg.className = 'msg';
       return load();
     }
@@ -685,7 +686,7 @@
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'کارکرد روزانهٔ کارگران' }), h('h2', { text: 'پروژه شهران' })),
           monthPicker)),
-      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.pay, panels.workers, panels.att, panels.invoice),
+      h('div', { class: 'wrap stack' }, tabBar, msg, panels.sheet, panels.agg, panels.pay, panels.workers, panels.att, panels.invoice, panels.statement),
       dlg
     );
     return setTab('sheet');

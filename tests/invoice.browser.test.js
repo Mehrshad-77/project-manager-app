@@ -22,7 +22,7 @@ const check = (name, cond, extra) => { checks++; if (!cond) { failures++; consol
     await (await page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: DL });
     await page.goto(BASE, { waitUntil: 'networkidle0' });
     await page.click('button[data-project=shahran]'); await sleep(500);
-    await page.evaluate(() => [...document.querySelectorAll('.tabs button')].pop().click()); await sleep(300);
+    await page.evaluate(() => [...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'فاکتور شاتکریت کوهسار').click()); await sleep(300);
     const type = async (sel, v) => { await page.click(sel, { clickCount: 3 }); await page.type(sel, v); };
     await type('[name=invoice_number]', '۴');
     await type('[name=contractor_name]', 'پیمانکاری اسکندری');

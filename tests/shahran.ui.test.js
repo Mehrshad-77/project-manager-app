@@ -53,7 +53,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('qaem and shahran are open, self is "به‌زودی"', cards.map((c) => !c.disabled).join() === 'true,true,false' && text(cards[2]).includes('به‌زودی'));
   cards[1].click(); await settle();
   check('back button visible and page heading is the shahran project', !$('#back').hidden && text($('.page-head h2')) === 'پروژه شهران', text($('.page-head h2')));
-  check("six tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار", $$(".tabs button").map(text));
+  check("seven tabs in Farsi", $$(".tabs button").map(text).join("|") === "کارکرد روزانه|کارکرد تجمیعی ماهانه|حضور و غیاب ماهانه|حقوق ماهانه|کارگران|فاکتور شاتکریت کوهسار|حساب مالی صورت وضعیت", $$(".tabs button").map(text));
   check('sheet tab is selected first', $$('.tabs button')[0].getAttribute('aria-selected') === 'true');
   const today = J.todayJalali();
   check('date pickers default to today (Solar)', +named('year').value === today.jy && +named('month').value === today.jm && +named('day').value === today.jd);
@@ -260,7 +260,7 @@ function check(name, cond, extra) { checks++; if (!cond) { failures++; console.l
   check('qaem can still add a row', $$('tbody tr').length >= 1 && text($('.msg')) === 'ردیف افزوده شد.', text($('.msg')));
   $('#back').click(); await settle();
   $$('.project-card')[1].click(); await settle();
-  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 6);
+  check('shahran can be re-opened and keeps its data (Aban pay)', text($('.page-head h2')) === 'پروژه شهران' && $$('.tabs button').length === 7);
   check('no JavaScript errors anywhere in the run', errors.length === 0, errors.slice(0, 3));
 
   console.log(`${checks} checks, ${failures} failures`);

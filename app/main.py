@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app import db
 from qaem.backend.routes import router as qaem_router
 from shahran.backend.routes import router as shahran_router
+from app.statement import router as statement_router
 
 # Registry shown in the front-end project selector. "id" is the English name used in URLs and code;
 # "title" and "description" are the Farsi text shown to people. Set active=True once a project has its routes.
@@ -39,6 +40,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="project-manager", lifespan=lifespan)
 app.include_router(qaem_router)
 app.include_router(shahran_router)
+app.include_router(statement_router)
 
 
 @app.get("/api/projects")

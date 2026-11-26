@@ -282,7 +282,7 @@
         h('div', { class: 'wrap head-row' },
           h('div', {}, h('p', { class: 'eyebrow', text: 'سرویس‌های روزانهٔ کامیون‌ها' }), h('h2', { text: 'پروژه قائم' })),
           h('div', { class: 'month-picker' }, field('ماه نمایش‌داده‌شده', vMonth), field('سال', vYear)))),
-      h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox, 'services'), section('مجموع سرویس‌های ', totalsBox, 'totals')),
+            h('div', { class: 'wrap stack' }, statsBox, form, section('سرویس‌های ثبت‌شده', rowsBox, 'services'), section('مجموع سرویس‌های ', totalsBox, 'totals'), root.StatementCard.create()),
       dlg
     );
     return load();
